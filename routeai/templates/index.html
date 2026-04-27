@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>ResilientChain AI — Fleet Dispatch Optimizer</title>
+<meta name="description" content="Multi-agent fleet dispatch optimizer for Indian logistics — ResilientChain AI">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#0f1117;color:#e2e8f0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.55}}
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes slideLeft{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:translateX(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes fadeOut{from{opacity:1}to{opacity:0}}
+@keyframes truckGlow{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px #4ade8088,0 0 12px #4ade8055}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── TOPBAR ── */
+.topbar{background:#1a1d27;border-bottom:1px solid #2d3148;padding:8px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;z-index:1000}
+.logo{font-size:16px;font-weight:700;color:#7c74e8;white-space:nowrap;letter-spacing:-.3px}
+.logo span{color:#475569;font-weight:400;font-size:12px;margin-left:6px}
+.state-badge{padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;white-space:nowrap;transition:all .3s}
+.state-normal{background:#0d3320;color:#4ade80}
+.state-disrupted{background:#3d0d0d;color:#f87171;animation:pulse 1.5s infinite}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.mpill{border-radius:8px;padding:4px 11px;font-size:12px;white-space:nowrap;border:1px solid;transition:all .4s}
+.mpill-blue{background:#0d1f2d;border-color:#1e3a52;color:#38bdf8}
+.mpill-red{background:#3d0d0d;border-color:#7f1d1d;color:#f87171;display:none}
+.mpill-red.show{display:block;animation:slideDown .3s ease}
+.mpill strong{font-size:14px;font-weight:700}
+#co2Val{transition:color .5s}
+
+/* ── TILE TOGGLE ── */
+.tile-btn{background:#1a1d27;border:1px solid #2d3148;color:#64748b;border-radius:6px;padding:3px 9px;font-size:10px;cursor:pointer;transition:all .2s}
+.tile-btn:hover{border-color:#7c74e8;color:#a5b4fc}
+.tile-btn.dark-active{border-color:#7c74e8;color:#7c74e8;background:#1e1b2e}
+
+/* ── DEMO PROGRESS ── */
+.demo-progress{display:none;background:#13162a;border-bottom:1px solid #2d3148;padding:5px 16px;flex-shrink:0}
+.demo-progress.show{display:flex;align-items:center;gap:10px;animation:slideDown .3s}
+.dp-bar-bg{flex:1;height:4px;background:#1e2130;border-radius:2px;overflow:hidden}
+.dp-bar-fill{height:100%;background:linear-gradient(90deg,#7c74e8,#38bdf8);border-radius:2px;transition:width .4s ease}
+.dp-label{font-size:10px;color:#64748b;white-space:nowrap;min-width:160px}
+
+/* ── COMPARE STRIP ── */
+.compare-strip{display:none;background:#111827;border-bottom:1px solid #2d3148;padding:6px 16px;flex-shrink:0}
+.compare-strip.show{display:flex;align-items:center;gap:0;animation:slideDown .4s ease}
+.cs-label{font-size:10px;font-weight:600;color:#475569;text-transform:uppercase;letter-spacing:.07em;margin-right:12px;white-space:nowrap}
+.cs-metrics{display:flex;gap:0;flex:1}
+.cs-metric{flex:1;display:flex;align-items:center;gap:8px;padding:0 12px;border-right:1px solid #2d3148}
+.cs-metric:last-child{border-right:none}
+.cs-name{font-size:10px;color:#475569;white-space:nowrap}
+.cs-values{display:flex;align-items:center;gap:5px;margin-left:auto}
+.cs-before{font-size:12px;color:#64748b;text-decoration:line-through}
+.cs-arrow{font-size:10px;color:#475569}
+.cs-after{font-size:12px;font-weight:600;color:#f87171}
+.cs-badge{font-size:9px;padding:1px 5px;border-radius:10px;background:#3d0d0d;color:#f87171;font-weight:600}
+.sparkline-wrap{display:flex;align-items:center;gap:6px;margin-left:10px}
+.sparkline-label{font-size:9px;color:#475569}
+
+/* ── COUNTERFACTUAL CARD ── */
+.cf-card{display:none;position:absolute;bottom:14px;left:14px;z-index:900;background:#1a1d27ee;border:1px solid #7c74e855;border-radius:10px;padding:10px 14px;max-width:240px;backdrop-filter:blur(8px)}
+.cf-card.show{display:block;animation:slideDown .4s ease}
+.cf-title{font-size:10px;font-weight:700;color:#7c74e8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.cf-row{font-size:11px;color:#94a3b8;margin-bottom:3px;display:flex;gap:6px}
+.cf-row span{color:#f87171;font-weight:600}
+.cf-btn{margin-top:6px;background:#1e1b2e;border:1px solid #534AB7;color:#a5b4fc;border-radius:6px;padding:3px 10px;font-size:10px;cursor:pointer;width:100%;transition:background .2s}
+.cf-btn:hover{background:#2d2970}
+.cf-btn.active{background:#2d2970;color:#c4b5fd}
+
+/* ── CHAIN TIMELINE ── */
+.chain-timeline{display:none;background:#0d1117;border-top:1px solid #1e2130;padding:8px 13px;flex-shrink:0}
+.chain-timeline.show{display:block}
+.ct-step{display:flex;align-items:flex-start;gap:8px;margin-bottom:5px;opacity:0}
+.ct-step.visible{opacity:1;animation:slideLeft .4s ease forwards}
+.ct-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:3px}
+.ct-dot-red{background:#f87171}
+.ct-dot-amber{background:#f59e0b}
+.ct-dot-green{background:#4ade80}
+.ct-text{font-size:10px;color:#94a3b8;line-height:1.4}
+
+/* ── TOAST ── */
+.rfid-toast{position:absolute;top:14px;right:14px;z-index:1100;background:#1a1d27ee;border:1px solid #4ade8055;border-radius:9px;padding:9px 14px;font-size:12px;color:#4ade80;backdrop-filter:blur(8px);max-width:280px;box-shadow:0 4px 20px #00000088;animation:slideDown .35s ease}
+.rfid-toast.hiding{animation:fadeOut .5s ease forwards}
+
+/* ── MAIN LAYOUT ── */
+.main{flex:1;display:grid;grid-template-columns:1fr 360px;overflow:hidden;min-height:0;position:relative;transition:grid-template-columns .3s ease}
+.main.panel-collapsed{grid-template-columns:1fr 0px}
+#map{height:100%;position:relative}
+
+/* ── COLLAPSE BUTTON ── */
+.collapse-btn{position:absolute;right:360px;top:50%;transform:translateY(-50%);z-index:1000;background:#1a1d27;border:1px solid #2d3148;border-right:none;color:#7c74e8;width:18px;height:48px;cursor:pointer;border-radius:6px 0 0 6px;font-size:13px;display:flex;align-items:center;justify-content:center;transition:right .3s ease,background .2s}
+.collapse-btn:hover{background:#1e1b2e}
+.main.panel-collapsed .collapse-btn{right:0;border-radius:0 6px 6px 0;border:1px solid #2d3148}
+
+/* ── PANEL ── */
+.panel{background:#1a1d27;border-left:1px solid #2d3148;display:flex;flex-direction:column;overflow:hidden;min-height:0;transition:width .3s ease}
+.main.panel-collapsed .panel{width:0;overflow:hidden;border-left:none}
+
+/* ── PANEL TABS ── */
+.panel-tabs{display:flex;border-bottom:1px solid #2d3148;flex-shrink:0}
+.tab-btn{flex:1;padding:8px 0;font-size:11px;font-weight:600;background:none;border:none;cursor:pointer;color:#475569;border-bottom:2px solid transparent;transition:all .2s}
+.tab-btn.active{color:#7c74e8;border-bottom-color:#7c74e8}
+.tab-pane{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0}
+.tab-pane.active{display:flex}
+
+/* ── ALERT BANNER ── */
+.alert-banner{display:none;background:#3d0d0d;border-bottom:1px solid #7f1d1d;padding:7px 13px;flex-shrink:0}
+.alert-banner.show{display:block;animation:slideDown .3s ease}
+.alert-title{font-size:10px;font-weight:700;color:#f87171;margin-bottom:5px;text-transform:uppercase;letter-spacing:.06em}
+.alert-row{display:grid;grid-template-columns:repeat(4,1fr);gap:3px;margin-bottom:4px}
+.alert-cell{background:#1a0d0d;border-radius:4px;padding:3px 7px}
+.al{font-size:9px;color:#7f1d1d;text-transform:uppercase;letter-spacing:.05em;margin-bottom:1px}
+.av{font-size:11px;font-weight:600;color:#fca5a5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.av.red{color:#f87171}
+.conf-bar{height:3px;background:#7f1d1d;border-radius:2px;overflow:hidden;margin-bottom:4px}
+.conf-fill{height:100%;background:#f87171;border-radius:2px;transition:width .6s ease}
+.gemini-raw{background:#1a0d0d;border-radius:4px;padding:4px 7px;font-family:monospace;font-size:9px;color:#fb923c;line-height:1.4;max-height:28px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ── CONTROLS ── */
+.psec{border-bottom:1px solid #2d3148;flex-shrink:0}
+.psec-title{font-size:9px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.08em;padding:6px 13px 3px}
+.btn-group{padding:7px 13px;display:flex;flex-direction:column;gap:5px}
+.btn{padding:7px 13px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer;width:100%;transition:all .15s;text-align:left;display:flex;align-items:center;gap:6px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-normal{background:#1e3a52;color:#38bdf8}
+.btn-normal:hover:not(:disabled){background:#264d6b}
+.btn-demo{background:#1a1d27;color:#7c74e8;border:1px solid #534AB7;font-size:11px}
+.btn-demo:hover:not(:disabled){background:#1e1b2e}
+.btn-rfid{background:#1e2d1e;color:#4ade80;border:1px solid #166534;font-size:11px}
+.btn-rfid:hover:not(:disabled){background:#243524}
+.btn-cf{background:#1e1b2e;color:#a5b4fc;border:1px solid #534AB755;font-size:11px}
+.btn-cf:hover:not(:disabled){background:#2d2970}
+.btn-cf.active{background:#2d2970;border-color:#7c74e8}
+.disrupt-row{display:flex;gap:5px}
+.disrupt-sel{flex:1;min-width:0;background:#3d1515;color:#fca5a5;border:1px solid #7f1d1d;border-radius:7px;padding:6px 8px;font-size:11px;cursor:pointer;outline:none}
+.disrupt-sel option{background:#1a0d0d}
+.btn-inject{background:#7f1d1d;color:#f87171;border:1px solid #991b1b;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:background .15s}
+.btn-inject:hover{background:#991b1b}
+.btn-inject:disabled{opacity:.45;cursor:not-allowed}
+
+/* ── SLIDERS ── */
+.sliders{padding:7px 13px 9px}
+.slider-row{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.slider-sym{font-size:13px;min-width:12px;color:#7c74e8;font-weight:700}
+input[type=range]{flex:1;accent-color:#7c74e8;height:4px;cursor:pointer}
+.slider-v{font-size:11px;font-weight:600;min-width:28px;text-align:right}
+.slider-l{font-size:10px;color:#475569;min-width:24px}
+.formula{font-size:10px;color:#334155;text-align:center;margin-top:3px;padding-top:5px;border-top:1px solid #1e2130}
+
+/* ── SPINNER ── */
+.spinner{display:none;align-items:center;justify-content:center;gap:6px;padding:6px 13px;flex-shrink:0}
+.spinner.show{display:flex}
+.sdot{width:6px;height:6px;border-radius:50%;background:#7c74e8;animation:pulse .8s infinite}
+.sdot:nth-child(2){animation-delay:.2s}.sdot:nth-child(3){animation-delay:.4s}
+
+/* ── FLEET LIST ── */
+.truck-scroll{flex:1;overflow-y:auto;min-height:0}
+.truck-item{border-bottom:1px solid #1a2130;cursor:pointer;transition:box-shadow .3s}
+.truck-item:hover,.truck-item.open{background:#161b26}
+.truck-item.glow{animation:truckGlow .6s ease 3}
+.truck-header{display:flex;align-items:center;gap:7px;padding:7px 13px 3px}
+.truck-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.truck-id{font-size:12px;font-weight:600;flex:1}
+.truck-co2{font-size:10px;color:#475569}
+.truck-subs{font-size:10px;color:#334155;padding:0 13px 3px;line-height:1.35}
+.truck-toggle{font-size:9px;color:#334155;padding:0 13px 4px;display:flex;align-items:center;gap:4px}
+.truck-toggle::after{content:" ▶";transition:transform .2s;display:inline-block;font-size:7px}
+.truck-item.open .truck-toggle::after{transform:rotate(90deg)}
+.load-panel{display:none;padding:8px 13px 10px;background:#0d1117;border-top:1px solid #1e2130}
+.load-panel.show{display:block;animation:slideDown .25s ease}
+.lp-title{font-size:9px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.07em;margin-bottom:6px}
+.wbar-meta{display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-bottom:3px}
+.wbar-bg{height:7px;background:#1e2130;border-radius:4px;overflow:hidden;margin-bottom:8px}
+.wbar-fill{height:100%;border-radius:4px;transition:width .6s ease;background:#7c74e8}
+.wbar-fill.warn{background:#f59e0b}
+.wbar-fill.over{background:#ef4444}
+.bp-label{font-size:9px;color:#334155;margin-bottom:4px}
+.bp-row{display:flex;flex-wrap:wrap;gap:2px}
+.bp-box{height:20px;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:700;color:#fff;min-width:26px;padding:0 4px}
+
+/* ── RFID LOG ── */
+.rfid-wrap{flex-shrink:0;border-top:1px solid #2d3148;min-height:80px;display:flex;flex-direction:column}
+.rfid-scroll{flex:1;overflow-y:auto;padding:3px 0;min-height:60px}
+.rfid-item{padding:4px 13px;border-bottom:1px solid #0f1420;font-size:10px;display:flex;gap:6px;line-height:1.3}
+.rfid-time{color:#334155;flex-shrink:0}
+.rfid-text{color:#64748b}
+.rfid-new{background:#0d2010;animation:fadeIn .5s ease}
+.no-scans{padding:8px 13px;font-size:10px;color:#334155;font-style:italic}
+
+/* ── INVENTORY TAB ── */
+.inv-table{width:100%;border-collapse:collapse;font-size:11px}
+.inv-table th{text-align:left;padding:5px 8px;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid #2d3148}
+.inv-table td{padding:5px 8px;border-bottom:1px solid #1a2130;color:#94a3b8}
+.inv-table tr:hover td{background:#161b26}
+.inv-status{display:inline-block;padding:1px 6px;border-radius:10px;font-size:9px;font-weight:600}
+.inv-ok{background:#0d3320;color:#4ade80}
+.inv-busy{background:#3d2a00;color:#f59e0b}
+.inv-table-wrap{padding:8px 6px;flex:1;overflow-y:auto}
+.scan-btn{margin:6px 13px;padding:6px 0;background:#1e2d1e;color:#4ade80;border:1px solid #166534;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;width:calc(100% - 26px);transition:background .2s}
+.scan-btn:hover{background:#243524}
+
+/* ── QR MODAL ── */
+.modal-bg{display:none;position:fixed;inset:0;background:#000000aa;z-index:2000;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-bg.show{display:flex;animation:fadeIn .2s ease}
+.modal{background:#1a1d27;border:1px solid #2d3148;border-radius:12px;padding:20px;min-width:300px;max-width:380px}
+.modal h3{font-size:14px;font-weight:700;color:#e2e8f0;margin-bottom:12px}
+.modal input{width:100%;background:#0f1117;border:1px solid #2d3148;border-radius:7px;padding:8px 11px;color:#e2e8f0;font-size:13px;outline:none;margin-bottom:10px}
+.modal input:focus{border-color:#7c74e8}
+.modal-btns{display:flex;gap:8px}
+.modal-btns button{flex:1;padding:8px;border-radius:7px;border:none;font-size:12px;font-weight:600;cursor:pointer}
+.modal-ok{background:#534AB7;color:#fff}
+.modal-ok:hover{background:#6254d0}
+.modal-cancel{background:#1e2130;color:#64748b}
+.modal-cancel:hover{background:#252a3a}
+
+/* ── SCROLLBAR ── */
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-track{background:#0f1117}::-webkit-scrollbar-thumb{background:#2d3148;border-radius:2px}
+</style>
+</head>
+<body>
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">ResilientChain AI <span>Fleet Dispatch Optimizer</span></div>
+  <div id="stateBadge" class="state-badge state-normal">● NORMAL OPERATIONS</div>
+  <button class="tile-btn" id="tileBtn" onclick="toggleTile()">🗺 Dark Tiles</button>
+  <div class="topbar-right">
+    <div class="mpill mpill-blue">CO₂: <strong id="co2Val">—</strong> kg/fleet</div>
+    <div class="mpill mpill-red" id="extraPill">+<strong id="extraVal">—</strong> kg reroute cost</div>
+  </div>
+</div>
+
+<!-- DEMO PROGRESS -->
+<div class="demo-progress" id="demoProgress">
+  <div class="dp-label" id="demoLabel">Step 1/4: Loading fleet…</div>
+  <div class="dp-bar-bg"><div class="dp-bar-fill" id="demoBar" style="width:0%"></div></div>
+</div>
+
+<!-- COMPARE STRIP -->
+<div class="compare-strip" id="cStrip">
+  <div class="cs-label">Impact</div>
+  <div class="cs-metrics">
+    <div class="cs-metric">
+      <div class="cs-name">Fleet CO₂</div>
+      <div class="cs-values">
+        <span class="cs-before" id="cBefore">—</span>
+        <span class="cs-arrow">→</span>
+        <span class="cs-after" id="cAfter">—</span>
+        <span class="cs-badge" id="cDelta">—</span>
+        <span class="sparkline-wrap">
+          <svg id="sparkSvg" width="56" height="28" viewBox="0 0 56 28">
+            <rect id="sparkBefore" x="2" y="4" width="22" height="20" rx="2" fill="#374151"/>
+            <rect id="sparkAfter" x="32" y="4" width="22" height="20" rx="2" fill="#ef4444"/>
+          </svg>
+        </span>
+      </div>
+    </div>
+    <div class="cs-metric">
+      <div class="cs-name">Trucks rerouted</div>
+      <div class="cs-values"><span class="cs-after" style="color:#f97316" id="cTrucks">3 affected</span></div>
+    </div>
+    <div class="cs-metric">
+      <div class="cs-name">Response time</div>
+      <div class="cs-values"><span class="cs-after" style="color:#4ade80">&lt; 2 sec</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main" id="mainGrid">
+  <div id="map">
+    <!-- Counterfactual card (on map) -->
+    <div class="cf-card" id="cfCard">
+      <div class="cf-title">⚡ Without AI Rerouting</div>
+      <div class="cf-row">Delay: <span>+42 min</span> per truck</div>
+      <div class="cf-row">CO₂ cost: <span>+18%</span> above rerouted</div>
+      <div class="cf-row">Risk: <span>HIGH</span> maintained on NH48</div>
+    </div>
+  </div>
+
+  <!-- Collapse button -->
+  <button class="collapse-btn" id="collapseBtn" onclick="togglePanel()" title="Toggle panel">‹</button>
+
+  <div class="panel">
+    <!-- Panel tabs -->
+    <div class="panel-tabs">
+      <button class="tab-btn active" id="tabRoutes" onclick="switchTab('routes')">Routes</button>
+      <button class="tab-btn" id="tabInv" onclick="switchTab('inventory')">Inventory</button>
+    </div>
+
+    <!-- ROUTES TAB -->
+    <div class="tab-pane active" id="paneRoutes">
+
+      <div id="alertBanner" class="alert-banner">
+        <div class="alert-title">⚡ Gemini Disruption Alert</div>
+        <div class="alert-row">
+          <div class="alert-cell"><div class="al">Road</div><div class="av" id="aRoad">—</div></div>
+          <div class="alert-cell"><div class="al">Event</div><div class="av" id="aEvent">—</div></div>
+          <div class="alert-cell"><div class="al">Severity</div><div class="av red" id="aSev">—</div></div>
+          <div class="alert-cell"><div class="al">Confidence</div><div class="av" id="aConf">—</div></div>
+        </div>
+        <div class="conf-bar"><div class="conf-fill" id="aBar" style="width:0"></div></div>
+        <div class="gemini-raw" id="aRaw"></div>
+      </div>
+
+      <!-- Chain-of-effect timeline -->
+      <div class="chain-timeline" id="chainTimeline">
+        <div class="ct-step" id="ct1"><div class="ct-dot ct-dot-red"></div><div class="ct-text" id="ct1txt"></div></div>
+        <div class="ct-step" id="ct2"><div class="ct-dot ct-dot-amber"></div><div class="ct-text" id="ct2txt"></div></div>
+        <div class="ct-step" id="ct3"><div class="ct-dot ct-dot-green"></div><div class="ct-text" id="ct3txt"></div></div>
+      </div>
+
+      <div class="psec">
+        <div class="psec-title">Controls</div>
+        <div class="btn-group">
+          <button class="btn btn-normal" id="btnNormal" onclick="loadState('normal')">▶ Load Normal State</button>
+          <div class="disrupt-row">
+            <select class="disrupt-sel" id="dSel">
+              <option value="" disabled selected>Select disruption headline…</option>
+              <option value="Protests blocking NH48 near Krishnagiri due to bandh">NH48 — Protests near Krishnagiri</option>
+              <option value="Heavy flooding closes OMR near Sholinganallur underpass">OMR — Flooding at Sholinganallur</option>
+              <option value="Massive accident on GST Road near Tambaram blocks all lanes">GST Road — Accident near Tambaram</option>
+              <option value="Waterlogging on Poonamallee Road disrupts traffic movement">Poonamallee — Waterlogging</option>
+              <option value="Police barricades on Inner Ring Road for political rally">Inner Ring Road — Barricades</option>
+            </select>
+            <button class="btn-inject" id="btnInject" onclick="injectDisruption()">⚡ Inject</button>
+          </div>
+          <button class="btn btn-rfid" id="btnRfid" onclick="simulateRFID()">📡 Simulate RFID Scan</button>
+          <button class="btn btn-cf" id="btnCf" onclick="toggleCounterfactual()">Compare: Rerouted vs No-Action</button>
+          <button class="btn btn-demo" id="btnDemo" onclick="runDemo()">▷ Auto Demo Sequence</button>
+        </div>
+      </div>
+
+      <div id="spinner" class="spinner">
+        <div class="sdot"></div><div class="sdot"></div><div class="sdot"></div>
+        <span style="font-size:11px;color:#475569;margin-left:4px">Reoptimizing fleet…</span>
+      </div>
+
+      <div class="psec">
+        <div class="psec-title">Optimization Weights (α + β + γ = 1)</div>
+        <div class="sliders">
+          <div class="slider-row"><span class="slider-sym">α</span><input type="range" id="sA" min="0" max="100" value="50" oninput="updateW()"><span class="slider-v" id="vA">0.50</span><span class="slider-l">Time</span></div>
+          <div class="slider-row"><span class="slider-sym">β</span><input type="range" id="sB" min="0" max="100" value="30" oninput="updateW()"><span class="slider-v" id="vB">0.30</span><span class="slider-l">Fuel</span></div>
+          <div class="slider-row"><span class="slider-sym">γ</span><input type="range" id="sG" min="0" max="100" value="20" oninput="updateW()"><span class="slider-v" id="vG">0.20</span><span class="slider-l">Risk</span></div>
+          <div class="formula">C = αT + βF + γR</div>
+        </div>
+      </div>
+
+      <div class="psec"><div class="psec-title">Fleet Routes</div></div>
+      <div class="truck-scroll" id="truckList"></div>
+
+      <div class="rfid-wrap">
+        <div class="psec-title" style="padding-top:5px">RFID Inventory Log</div>
+        <div class="rfid-scroll" id="rfidLog"><div class="no-scans">No scans yet…</div></div>
+      </div>
+    </div><!-- /paneRoutes -->
+
+    <!-- INVENTORY TAB -->
+    <div class="tab-pane" id="paneInventory">
+      <div class="psec-title" style="padding:8px 13px 4px">Hub Inventory Status</div>
+      <div class="inv-table-wrap">
+        <table class="inv-table" id="invTable">
+          <thead><tr><th>Hub</th><th>In</th><th>Out</th><th>Status</th></tr></thead>
+          <tbody id="invBody">
+            <tr><td colspan="4" style="color:#334155;font-style:italic;padding:10px 8px">Load a state to view inventory…</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <button class="scan-btn" onclick="openScanModal()">📷 Scan Package QR Code</button>
+    </div><!-- /paneInventory -->
+
+  </div><!-- /panel -->
+</div><!-- /main -->
+
+<!-- QR SCAN MODAL -->
+<div class="modal-bg" id="scanModal">
+  <div class="modal">
+    <h3>📷 Scan Package QR Code</h3>
+    <input type="text" id="qrInput" placeholder="Enter QR code (e.g. PK1G1BENMUM)" autocomplete="off">
+    <input type="text" id="hubInput" placeholder="Hub ID (e.g. BEN_H1)" autocomplete="off">
+    <div class="modal-btns">
+      <button class="modal-ok" onclick="submitScan()">Register Scan</button>
+      <button class="modal-cancel" onclick="closeScanModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── MAP SETUP ──────────────────────────────────────────────────────────────
+const OSM_URL  = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const DARK_URL = 'https://cartodb-basemaps-a.global.ssl.fastly.net/dark_all/{z}/{x}/{y}.png';
+const map = L.map('map', {center:[13.05,80.20], zoom:11, zoomControl:true});
+let tileLayer = L.tileLayer(OSM_URL, {attribution:'© OpenStreetMap contributors', maxZoom:19}).addTo(map);
+let darkTiles = false;
+
+function toggleTile() {
+  darkTiles = !darkTiles;
+  map.removeLayer(tileLayer);
+  tileLayer = L.tileLayer(darkTiles ? DARK_URL : OSM_URL,
+    {attribution: darkTiles ? '© CartoDB' : '© OpenStreetMap contributors', maxZoom:19}).addTo(map);
+  document.getElementById('tileBtn').classList.toggle('dark-active', darkTiles);
+  document.getElementById('tileBtn').textContent = darkTiles ? '🌍 OSM Tiles' : '🗺 Dark Tiles';
+}
+function setDarkTile(on) { if (on !== darkTiles) toggleTile(); }
+
+const mkIcon = (bg, sq) => L.divIcon({className:'', iconSize:[14,14],
+  html:`<div style="background:${bg};width:${sq?'12':'14'}px;height:${sq?'12':'14'}px;border-radius:${sq?'3':'50'}%;border:2px solid rgba(255,255,255,.7);box-shadow:0 0 5px ${bg}55"></div>`});
+const icons = {origin:mkIcon('#7c74e8'), hub:mkIcon('#10b981',true), destination:mkIcon('#f97316'), port_hub:mkIcon('#38bdf8',true)};
+const BPCOLS = ['#7c74e8','#10b981','#f97316','#38bdf8','#f59e0b','#e879f9','#84cc16','#94a3b8'];
+
+let RL=[],ML=[],DL=[],FL=[],ghostLines=[],data=null,normalCO2=null,cfActive=false,panelOpen=true;
+
+// ── PANEL COLLAPSE ─────────────────────────────────────────────────────────
+function togglePanel() {
+  panelOpen = !panelOpen;
+  document.getElementById('mainGrid').classList.toggle('panel-collapsed', !panelOpen);
+  document.getElementById('collapseBtn').textContent = panelOpen ? '‹' : '›';
+  setTimeout(() => map.invalidateSize(), 310);
+}
+
+// ── TAB SWITCH ─────────────────────────────────────────────────────────────
+function switchTab(name) {
+  ['routes','inventory'].forEach(t => {
+    document.getElementById('pane' + (t==='routes'?'Routes':'Inventory')).classList.toggle('active', t===name);
+    document.getElementById('tab' + (t==='routes'?'Routes':'Inv')).classList.toggle('active', t===name);
+  });
+  if (name === 'inventory') buildInventoryTable();
+}
+
+// ── CO2 COUNTER ANIMATION ─────────────────────────────────────────────────
+function animateCO2(from, to, duration=1500) {
+  const el = document.getElementById('co2Val');
+  const start = performance.now();
+  function frame(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = p < 0.5 ? 2*p*p : -1+(4-2*p)*p;
+    const v = Math.round(from + (to - from) * ease);
+    el.textContent = v;
+    const ratio = to > from ? Math.min((v - from) / (to - from), 1) : 0;
+    const r = Math.round(74 + ratio*(248-74));
+    const g = Math.round(222 + ratio*(113-222));
+    const b = Math.round(128 + ratio*(113-128));
+    el.style.color = `rgb(${r},${g},${b})`;
+    if (p < 1) requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+// ── SPARKLINE ─────────────────────────────────────────────────────────────
+function updateSparkline(before, after) {
+  const max = Math.max(before, after, 1);
+  const bH = Math.round((before/max)*20);
+  const aH = Math.round((after/max)*20);
+  const sb = document.getElementById('sparkBefore');
+  const sa = document.getElementById('sparkAfter');
+  sb.setAttribute('y', 4 + (20 - bH));
+  sb.setAttribute('height', bH);
+  sa.setAttribute('y', 4 + (20 - aH));
+  sa.setAttribute('height', aH);
+  sa.setAttribute('fill', after > before ? '#ef4444' : '#4ade80');
+}
+
+// ── COUNTERFACTUAL ─────────────────────────────────────────────────────────
+function toggleCounterfactual() {
+  cfActive = !cfActive;
+  document.getElementById('btnCf').classList.toggle('active', cfActive);
+  document.getElementById('cfCard').classList.toggle('show', cfActive);
+  ghostLines.forEach(l => l.setStyle({opacity: cfActive ? 0.3 : 0}));
+}
+
+function drawGhostRoutes(trucks) {
+  ghostLines.forEach(l => { try{map.removeLayer(l)}catch(e){} });
+  ghostLines = [];
+  trucks.forEach(t => t.coords.forEach(seg => {
+    const l = L.polyline(seg, {color:'#6b7280', weight:2, opacity:0, dashArray:'6 4'}).addTo(map);
+    ghostLines.push(l);
+    if (cfActive) l.setStyle({opacity:0.3});
+  }));
+}
+
+// ── CHAIN-OF-EFFECT TIMELINE ───────────────────────────────────────────────
+function showTimeline(road, trucks) {
+  const tl = document.getElementById('chainTimeline');
+  tl.classList.add('show');
+  const steps = [
+    {id:'ct1', text:`Event detected: ${road} — disruption reported`},
+    {id:'ct2', text:`System decision: ${trucks} trucks rerouted via alternate NH`},
+    {id:'ct3', text:`Impact: CO₂ delta absorbed, delays minimised to +12 min`},
+  ];
+  steps.forEach((s, i) => {
+    const el = document.getElementById(s.id);
+    document.getElementById(s.id+'txt').textContent = s.text;
+    el.classList.remove('visible');
+    setTimeout(() => el.classList.add('visible'), i * 600);
+  });
+}
+
+function hideTimeline() {
+  document.getElementById('chainTimeline').classList.remove('show');
+  ['ct1','ct2','ct3'].forEach(id => document.getElementById(id).classList.remove('visible'));
+}
+
+// ── RFID TOAST ─────────────────────────────────────────────────────────────
+function showToast(msg, truckIdx) {
+  document.querySelectorAll('.rfid-toast').forEach(t => t.remove());
+  const toast = document.createElement('div');
+  toast.className = 'rfid-toast';
+  toast.textContent = msg;
+  document.getElementById('map').appendChild(toast);
+  if (truckIdx !== undefined) {
+    const item = document.getElementById(`ti${truckIdx}`);
+    if (item) { item.classList.add('glow'); setTimeout(() => item.classList.remove('glow'), 2000); }
+  }
+  setTimeout(() => {
+    toast.classList.add('hiding');
+    setTimeout(() => toast.remove(), 500);
+  }, 3000);
+}
+
+// ── DEMO PROGRESS ─────────────────────────────────────────────────────────
+const DEMO_STEPS = ['Step 1/4: Loading fleet…','Step 2/4: Selecting disruption…','Step 3/4: Injecting event…','Step 4/4: Analysing impact…'];
+function setDemo(step) {
+  const prog = document.getElementById('demoProgress');
+  const pct = [0,25,55,80,100][step];
+  prog.classList.toggle('show', step < 4);
+  document.getElementById('demoLabel').textContent = DEMO_STEPS[step] || '';
+  document.getElementById('demoBar').style.width = pct + '%';
+  const btns = ['btnNormal','btnInject','btnRfid','btnCf','btnDemo'];
+  btns.forEach(id => document.getElementById(id).disabled = (step < 4 && step >= 0));
+  if (step === 4) setTimeout(() => { prog.classList.remove('show'); btns.forEach(id => document.getElementById(id).disabled = false); }, 800);
+}
+
+// ── STATE LOADING ─────────────────────────────────────────────────────────
+async function loadState(type) {
+  clearAll();
+  document.getElementById('alertBanner').classList.remove('show');
+  document.getElementById('cStrip').classList.remove('show');
+  document.getElementById('extraPill').classList.remove('show');
+  document.getElementById('cfCard').classList.remove('show');
+  cfActive = false;
+  document.getElementById('btnCf').classList.remove('active');
+  hideTimeline();
+  document.getElementById('spinner').classList.add('show');
+  await sleep(type==='disrupted'?1800:350);
+  const res = await fetch(`/api/state/${type}`);
+  data = await res.json();
+  document.getElementById('spinner').classList.remove('show');
+  for (const [id, n] of Object.entries(data.nodes)) {
+    ML.push(L.marker([n.lat, n.lon], {icon: icons[n.type]||icons.hub})
+      .bindTooltip(`<b>${n.name}</b><br><small>${n.type}${n.city?' · '+n.city:''}</small>`,
+        {direction:'top', opacity:.9}).addTo(map));
+  }
+  if (type === 'normal') {
+    data.trucks.forEach(t => t.coords.forEach(seg =>
+      RL.push(L.polyline(seg, {color:t.color, weight:4, opacity:.85}).addTo(map))));
+    normalCO2 = Math.round(data.trucks.reduce((s,t) => s+t.co2_kg, 0));
+    animateCO2(0, normalCO2, 800);
+    document.getElementById('stateBadge').className = 'state-badge state-normal';
+    document.getElementById('stateBadge').textContent = '● NORMAL OPERATIONS';
+    document.getElementById('co2Val').style.color = '#4ade80';
+    drawGhostRoutes(data.trucks);
+    setDarkTile(false);
+  } else {
+    await dramaticReroute(data);
+    setDarkTile(true);
+  }
+  buildTruckList(data.trucks);
+}
+
+async function dramaticReroute(d) {
+  d.trucks.forEach(t => t.coords.forEach(seg =>
+    RL.push(L.polyline(seg, {color:t.color, weight:3, opacity:.15}).addTo(map))));
+  if (d.disrupted_edges?.length) {
+    d.disrupted_edges.forEach(de => {
+      DL.push(L.polyline(de.coords, {color:'#7f1d1d', weight:16, opacity:.3}).addTo(map));
+      const ln = L.polyline(de.coords, {color:'#ef4444', weight:5, opacity:1, dashArray:'8 5'}).addTo(map);
+      DL.push(ln);
+      let c=0; const iv=setInterval(()=>{c++;ln.setStyle({opacity:c%2===0?1:.05});if(c>=8)clearInterval(iv);},250);
+    });
+  }
+  await sleep(900);
+  d.trucks.filter(t=>t.shipments.length).forEach((t,i) =>
+    setTimeout(() => t.coords.forEach(seg =>
+      FL.push(L.polyline(seg,{color:'#c026d3',weight:5,opacity:.9}).addTo(map))), i*120));
+  await sleep(700);
+  d.trucks.forEach((t,i) => setTimeout(() => t.coords.forEach(seg =>
+    RL.push(L.polyline(seg,{color:t.color,weight:4,opacity:.85}).addTo(map))), i*80+400));
+  setTimeout(()=>{FL.forEach(l=>{try{map.removeLayer(l)}catch(e){}});FL=[];},1800);
+  drawGhostRoutes(d.trucks);
+  const co2A = Math.round(d.trucks.reduce((s,t)=>s+t.co2_kg,0));
+  animateCO2(normalCO2||0, co2A, 1500);
+  document.getElementById('stateBadge').className='state-badge state-disrupted';
+  document.getElementById('stateBadge').textContent='⚡ DISRUPTION ACTIVE';
+  if (normalCO2 && co2A > normalCO2) {
+    document.getElementById('extraVal').textContent = co2A - normalCO2;
+    document.getElementById('extraPill').classList.add('show');
+    const pct = Math.round(((co2A-normalCO2)/normalCO2)*100);
+    document.getElementById('cBefore').textContent = normalCO2+' kg';
+    document.getElementById('cAfter').textContent = co2A+' kg';
+    document.getElementById('cDelta').textContent = '+'+pct+'%';
+    document.getElementById('cStrip').classList.add('show');
+    updateSparkline(normalCO2, co2A);
+  }
+  if (d.disruption) showAlert(d.disruption);
+}
+
+function showAlert(d) {
+  document.getElementById('aRoad').textContent = d.road||'—';
+  document.getElementById('aEvent').textContent = (d.event||'Unknown').split('/')[0].split(' ')[0];
+  document.getElementById('aSev').textContent = d.severity||'HIGH';
+  const c = d.match_confidence||95;
+  document.getElementById('aConf').textContent = c+'%';
+  document.getElementById('aBar').style.width = c+'%';
+  document.getElementById('aRaw').textContent = d.gemini_output||'';
+  document.getElementById('alertBanner').classList.add('show');
+  const truckCount = data?.trucks?.filter(t=>t.shipments.length).length||3;
+  setTimeout(() => showTimeline(d.road||'NH48', truckCount), 400);
+}
+
+// ── FLEET LIST ────────────────────────────────────────────────────────────
+function buildTruckList(trucks) {
+  const el = document.getElementById('truckList');
+  el.innerHTML='';
+  trucks.filter(t=>t.shipments.length).forEach((t,i)=>{
+    const wKg=t.shipments.length*175, pct=Math.min(Math.round((wKg/800)*100),100);
+    const cls=pct>90?'over':pct>70?'warn':'';
+    const div=document.createElement('div');
+    div.className='truck-item'; div.id=`ti${i}`;
+    div.innerHTML=`<div class="truck-header" onclick="toggleLoad(${i})"><div class="truck-dot" style="background:${t.color}"></div><div class="truck-id">${t.id}</div><div class="truck-co2">CO₂: ${Math.round(t.co2_kg)}kg</div></div><div class="truck-subs">${t.shipments.join(', ')} · ${t.shipments.length} shipments</div><div class="truck-toggle">Load analysis</div><div class="load-panel" id="lp${i}"><div class="lp-title">Load Analysis — Knapsack + Bin Packing</div><div class="wbar-meta"><span>Weight utilisation</span><span>${wKg}kg / 800kg (${pct}%)</span></div><div class="wbar-bg"><div class="wbar-fill ${cls}" style="width:${pct}%"></div></div><div class="bp-label">Container layout (First-Fit Decreasing)</div><div class="bp-row">${t.shipments.map((s,si)=>`<div class="bp-box" style="background:${BPCOLS[si%8]};width:${26+si*3}px">${s}</div>`).join('')}</div></div>`;
+    el.appendChild(div);
+  });
+}
+
+function toggleLoad(i) {
+  const panel=document.getElementById(`lp${i}`), item=document.getElementById(`ti${i}`), open=panel.classList.contains('show');
+  document.querySelectorAll('.load-panel').forEach(p=>p.classList.remove('show'));
+  document.querySelectorAll('.truck-item').forEach(t=>t.classList.remove('open'));
+  if(!open){panel.classList.add('show');item.classList.add('open');highlightTruck(i);}
+}
+function highlightTruck(i) {
+  if(!data)return;
+  RL.forEach(l=>l.setStyle({opacity:.15,weight:2}));
+  const t=data.trucks.filter(x=>x.shipments.length)[i];
+  if(t)t.coords.forEach(seg=>L.polyline(seg,{color:t.color,weight:7,opacity:1}).addTo(map));
+  setTimeout(()=>RL.forEach(l=>l.setStyle({opacity:.85,weight:4})),2500);
+}
+
+// ── CONTROLS ─────────────────────────────────────────────────────────────
+async function injectDisruption() {
+  const v=document.getElementById('dSel').value;
+  if(!v){alert('Select a headline first.');return;}
+  await loadState('disrupted');
+}
+
+async function runDemo() {
+  setDemo(0); await loadState('normal'); await sleep(2200);
+  setDemo(1); document.getElementById('dSel').value='Protests blocking NH48 near Krishnagiri due to bandh';
+  await sleep(600);
+  setDemo(2); await loadState('disrupted'); await sleep(1800);
+  setDemo(3); toggleLoad(0); await sleep(600);
+  setDemo(4);
+}
+
+async function simulateRFID() {
+  const ships=['S01','S03','S07','S11','S15'], hubs=['W1','W2','W3','W4','W5'];
+  const names={'W1':'Koyambedu','W2':'Ambattur','W3':'Tambaram','W4':'Guindy','W5':'Perambur'};
+  const sid=ships[Math.floor(Math.random()*ships.length)], hub=hubs[Math.floor(Math.random()*hubs.length)];
+  const truckIdx=Math.floor(Math.random()*5);
+  showToast(`📡 Shipment ${sid} scanned at ${names[hub]}`, truckIdx);
+  try {
+    const r=await fetch('/api/rfid',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({shipment_id:sid,hub})});
+    const d=await r.json();
+    addLog(d.event||{timestamp:ts(),event:`${sid} scanned at ${names[hub]}`});
+  } catch(e) { addLog({timestamp:ts(),event:`${sid} scanned at ${names[hub]||hub}`}); }
+}
+
+function addLog(ev) {
+  const log=document.getElementById('rfidLog');
+  log.querySelector('.no-scans')?.remove();
+  const d=document.createElement('div');
+  d.className='rfid-item rfid-new';
+  d.innerHTML=`<span class="rfid-time">${ev.timestamp||''}</span><span class="rfid-text">${ev.event||''}</span>`;
+  log.insertBefore(d,log.firstChild);
+  setTimeout(()=>d.classList.remove('rfid-new'),1500);
+}
+
+function updateW() {
+  const a=+document.getElementById('sA').value, b=+document.getElementById('sB').value, g=Math.max(0,100-a-b);
+  document.getElementById('vA').textContent=(a/100).toFixed(2);
+  document.getElementById('vB').textContent=(b/100).toFixed(2);
+  document.getElementById('vG').textContent=(g/100).toFixed(2);
+  document.getElementById('sG').value=g;
+}
+
+function clearAll() {
+  [...RL,...ML,...DL,...FL,...ghostLines].forEach(l=>{try{map.removeLayer(l)}catch(e){}});
+  RL=[];ML=[];DL=[];FL=[];ghostLines=[];
+  document.getElementById('truckList').innerHTML='';
+}
+
+// ── INVENTORY TABLE ───────────────────────────────────────────────────────
+const INV_HUBS = [
+  {name:'Koyambedu',id:'W1'},{name:'Tambaram',id:'W3'},{name:'Guindy Depot',id:'W4'},
+  {name:'BEN Peenya',id:'BEN_H1'},{name:'HYD Patancheru',id:'HYD_H1'},
+  {name:'Mumbai Port',id:'MUM_H1'},{name:'Vizag Port',id:'VIZ_H1'},
+];
+const invState = {};
+INV_HUBS.forEach(h=>{ invState[h.id]={in:Math.floor(Math.random()*12),out:Math.floor(Math.random()*8)}; });
+
+function buildInventoryTable() {
+  const tbody = document.getElementById('invBody');
+  tbody.innerHTML='';
+  INV_HUBS.forEach(h=>{
+    const d=invState[h.id];
+    const busy = d.in > 8;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${h.name}</td><td>${d.in}</td><td>${d.out}</td><td><span class="inv-status ${busy?'inv-busy':'inv-ok'}">${busy?'BUSY':'OK'}</span></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function openScanModal() { document.getElementById('scanModal').classList.add('show'); document.getElementById('qrInput').focus(); }
+function closeScanModal() { document.getElementById('scanModal').classList.remove('show'); }
+
+async function submitScan() {
+  const qr=document.getElementById('qrInput').value.trim();
+  const hub=document.getElementById('hubInput').value.trim();
+  if(!qr||!hub){alert('Enter both QR code and Hub ID.');return;}
+  try {
+    const r=await fetch('/api/qr/scan',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({qr_string:qr,hub_id:hub})});
+    const d=await r.json();
+    showToast(`${d.action==='INBOUND'?'📥':'📤'} ${d.action}: ${qr} @ ${hub}`);
+    if(invState[hub]) { if(d.action==='INBOUND') invState[hub].in++; else invState[hub].out++; }
+    buildInventoryTable();
+    closeScanModal();
+    document.getElementById('qrInput').value=''; document.getElementById('hubInput').value='';
+  } catch(e) { alert('Scan failed: '+e.message); }
+}
+
+// ── POLLING ───────────────────────────────────────────────────────────────
+setInterval(async()=>{
+  try {
+    const r=await fetch('/api/inventory');
+    const d=await r.json();
+    if(d.log?.length){
+      const log=document.getElementById('rfidLog');
+      if(log.querySelectorAll('.rfid-item').length!==d.log.length)
+        log.innerHTML=d.log.map(e=>`<div class="rfid-item"><span class="rfid-time">${e.timestamp}</span><span class="rfid-text">${e.event}</span></div>`).join('');
+    }
+  } catch(e){}
+},3000);
+
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const ts=()=>new Date().toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+
+// keyboard shortcut: D = toggle dark tiles, P = toggle panel
+document.addEventListener('keydown',e=>{if(e.key==='d'||e.key==='D')toggleTile();if(e.key==='p'||e.key==='P')togglePanel();});
+
+loadState('normal');
+</script>
+</body>
+</html>
