@@ -45,7 +45,8 @@ from vrp_solver import (
 # ─────────────────────────────────────────────────────────────────────────────
 from qr_manager import (
     generate_group_qr_codes, export_to_pdf, register_scan,
-    get_inventory_status, cache_group, get_cached_group,
+    get_inventory_status, get_scan_log,
+    cache_group, get_cached_group,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -289,17 +290,37 @@ def qr_generate():
     Body: {group_number, origin, destination, total_packages, package_type}
     """
     try:
-        data = request.get_json(force=True) or {}
-        grp  = int(data.get("group_number", 1))
-        orig = str(data.get("origin", "BEN")).upper()
-        dest = str(data.get("destination", "MUM")).upper()
-        n    = int(data.get("total_packages", 1))
-        ptype= str(data.get("package_type", "STANDARD")).upper()
+        data  = request.get_json(force=True) or {}
+        grp   = int(data.get("group_number", 1))
+        orig  = str(data.get("origin", "BEN")).upper()
+        dest  = str(data.get("destination", "MUM")).upper()
+        n     = int(data.get("total_packages", 1))
+        ptype = str(data.get("package_type", "STANDARD")).upper()
 
         images, meta = generate_group_qr_codes(grp, orig, dest, n, ptype)
         cache_group(grp, images, meta)
-        return _safe_json({"status": "ok", "metadata": meta,
-                           "qr_strings": meta["qr_strings"]})
+
+        # Build per-package list with real QR API URLs
+        QR_BASE = "https://api.qrserver.com/v1/create-qr-code/?size=150x150&data="
+        packages_out = [
+            {
+                "package_id": qr_str,
+                "qr_url":     QR_BASE + qr_str,
+                "type":       ptype,
+            }
+            for qr_str in meta["qr_strings"]
+        ]
+
+        return _safe_json({
+            "status":        "ok",
+            "group_id":      meta["group_id"],
+            "packages":      packages_out,
+            "pdf_available": True,
+            "pdf_url":       f"/api/qr/download/{grp}",
+            "message":       f"{n} QR codes generated for group {meta['group_id']} "
+                             f"({orig}→{dest})",
+            "metadata":      meta,
+        })
     except ValueError as exc:
         return _safe_json({"status": "error", "detail": str(exc)}, 400)
     except Exception as exc:
@@ -356,6 +377,85 @@ def hub_inventory(hub_id: str):
         return _safe_json({"status": "ok", **result})
     except Exception as exc:
         logger.exception("hub_inventory error")
+        return _safe_json({"status": "error", "detail": str(exc)})
+
+
+@app.route("/api/inventory/scanlog")
+def inventory_scanlog():
+    """
+    GET /api/inventory/scanlog
+    Query params:
+      hub_id (str, optional) — filter to a specific hub
+      limit  (int, optional) — max events to return (default 50)
+    Returns list of scan events, newest first.
+    """
+    try:
+        hub_id = request.args.get("hub_id") or None
+        limit  = int(request.args.get("limit", 50))
+        events = get_scan_log(hub_id=hub_id, limit=limit)
+        return _safe_json({
+            "status": "ok",
+            "count":  len(events),
+            "events": events,
+        })
+    except Exception as exc:
+        logger.exception("inventory_scanlog error")
+        return _safe_json({"status": "error", "detail": str(exc)})
+
+
+@app.route("/api/inventory/all")
+def inventory_all():
+    """
+    GET /api/inventory/all
+    Returns inventory summary for all known hubs — used by the
+    Inventory tab table in the dashboard.
+
+    Each hub entry mirrors the INV_DATA shape from the frontend,
+    supplemented with live Firestore package counts where available.
+    """
+    try:
+        # Static hub definitions (mirrors frontend INV_DATA)
+        HUBS = [
+            {"id": "BEN_K1", "name": "Koyambedu Market",     "city": "BEN", "group": "BEN",     "capMT": 3000  },
+            {"id": "BEN_T1", "name": "Tambaram Hub",          "city": "BEN", "group": "BEN",     "capMT": 1500  },
+            {"id": "BEN_G1", "name": "Guindy Depot",          "city": "BEN", "group": "BEN",     "capMT": 5000  },
+            {"id": "BEN_P1", "name": "BEN Peenya",            "city": "BEN", "group": "BEN",     "capMT": 1700  },
+            {"id": "HYD_P1", "name": "HYD Patancheru",        "city": "HYD", "group": "HYD",     "capMT": 2000  },
+            {"id": "MUM_P1", "name": "Mumbai Port",           "city": "MUM", "group": "Coastal", "capMT": 50000 },
+            {"id": "VIZ_P1", "name": "Vizag Port",            "city": "VIZ", "group": "Coastal", "capMT": 30000 },
+            {"id": "COC_P1", "name": "Cochin Port",           "city": "COC", "group": "Coastal", "capMT": 25000 },
+            {"id": "BEN_H1", "name": "Peenya Industrial Hub", "city": "BEN", "group": "BEN",     "capMT": 8000  },
+            {"id": "BEN_H2", "name": "Whitefield Logistics",  "city": "BEN", "group": "BEN",     "capMT": 4000  },
+            {"id": "BEN_H3", "name": "Electronic City Hub",   "city": "BEN", "group": "BEN",     "capMT": 5000  },
+            {"id": "BEN_H4", "name": "Yeshwanthpur Depot",    "city": "BEN", "group": "BEN",     "capMT": 5000  },
+            {"id": "HYD_H1", "name": "Patancheru Hub",        "city": "HYD", "group": "HYD",     "capMT": 4500  },
+            {"id": "HYD_H2", "name": "LB Nagar Depot",        "city": "HYD", "group": "HYD",     "capMT": 4500  },
+            {"id": "HYD_H3", "name": "Shamshabad Freight",    "city": "HYD", "group": "HYD",     "capMT": 5500  },
+            {"id": "HYD_H4", "name": "KPHB Logistics Park",   "city": "HYD", "group": "HYD",     "capMT": 5000  },
+            {"id": "COC_H1", "name": "Cochin Port Terminal",  "city": "COC", "group": "Coastal", "capMT": 35000 },
+            {"id": "VIZ_H1", "name": "Vizag Port Warehouse",  "city": "VIZ", "group": "Coastal", "capMT": 40000 },
+            {"id": "MUM_H1", "name": "Nhava Sheva CFS",       "city": "MUM", "group": "Coastal", "capMT": 80000 },
+            {"id": "BEN_H5", "name": "Nagasandra Hub",        "city": "BEN", "group": "BEN",     "capMT": 4000  },
+        ]
+        result = []
+        for h in HUBS:
+            try:
+                inv = get_inventory_status(h["id"])
+                stock = inv.get("total", 0)
+            except Exception:
+                stock = 0
+            util_pct = round((stock / h["capMT"]) * 100, 1) if h["capMT"] else 0
+            status = "CRITICAL" if util_pct > 5 else "BUSY" if util_pct > 2 else "OK"
+            result.append({
+                **h,
+                "stock":    stock,
+                "util_pct": util_pct,
+                "status":   status,
+                "updated":  _ts(),
+            })
+        return _safe_json({"status": "ok", "hubs": result, "total_hubs": len(result)})
+    except Exception as exc:
+        logger.exception("inventory_all error")
         return _safe_json({"status": "error", "detail": str(exc)})
 
 

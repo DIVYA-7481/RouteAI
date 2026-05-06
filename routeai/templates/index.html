@@ -516,6 +516,35 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
 .rfid-desc{color:var(--text-secondary)}
 .rfid-new{background:rgba(16,185,129,.05)}
 
+/* ─── Print CSS for QR cards ─── */
+@media print {
+  body { background: #fff !important; color: #000 !important; overflow: visible !important; }
+  #sidebar, #topbar, #inv-tab-0, #inv-tab-2, #inv-tab-3,
+  .inv-subtab-bar, button:not(.qr-print-keep) { display: none !important; }
+  #page-inventory { display: block !important; padding: 0 !important; }
+  #inv-panel-1 { display: block !important; }
+  .card { border: 1px solid #ccc !important; background: #fff !important; }
+  #qrg-grid {
+    display: grid !important;
+    grid-template-columns: repeat(4, 1fr) !important;
+    gap: 12px !important;
+    padding: 16px !important;
+    background: #fff !important;
+  }
+  #qrg-grid > div {
+    background: #fff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 8px !important;
+    padding: 12px !important;
+    text-align: center !important;
+    page-break-inside: avoid !important;
+  }
+  #qrg-grid img { filter: none !important; }
+  #qrg-grid div[style*='color:#334155'] { color: #000 !important; }
+  #qrg-grid div[style*='color:#475569'] { color: #333 !important; }
+  #qrg-grid div[style*='color:#a5b4fc'] { color: #1a1a2e !important; }
+}
+
 /* Counterfactual overlay card */
 .cf-overlay{
   position:absolute;bottom:14px;left:14px;z-index:500;
@@ -608,6 +637,16 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
         </svg>
       </span>
       <span class="label">Analytics</span>
+    </a>
+
+    <a class="sb-item" id="nav-algoval" data-page="analytics" data-tooltip="Algorithm Validation" onclick="navigate('analytics');setTimeout(()=>document.getElementById('algoval-section').scrollIntoView({behavior:'smooth'}),200);return false">
+      <span class="icon">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/>
+          <line x1="8" y1="6" x2="16" y2="6"/><line x1="6" y1="8" x2="11" y2="16"/><line x1="18" y1="8" x2="13" y2="16"/>
+        </svg>
+      </span>
+      <span class="label">Algo Validation</span>
     </a>
   </div>
 
@@ -1094,17 +1133,17 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
               <div id="dis-sb-0" style="width:26px;height:26px;border-radius:50%;background:#7c74e8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0">1</div>
               <span style="font-size:10px;font-weight:600;color:#a5b4fc;white-space:nowrap">Package Details</span>
             </div>
-            <div style="flex:1;height:1px;background:#2d3148;margin:0 6px"></div>
+            <div id="dis-conn-0" style="flex:1;height:2px;background:#2d3148;margin:0 6px;border-radius:1px;transition:background .4s"></div>
             <div id="dis-si-1" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div id="dis-sb-1" style="width:26px;height:26px;border-radius:50%;border:2px solid #2d3148;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#334155;flex-shrink:0">2</div>
               <span style="font-size:10px;font-weight:600;color:#334155;white-space:nowrap">Route Selection</span>
             </div>
-            <div style="flex:1;height:1px;background:#2d3148;margin:0 6px"></div>
+            <div id="dis-conn-1" style="flex:1;height:2px;background:#2d3148;margin:0 6px;border-radius:1px;transition:background .4s"></div>
             <div id="dis-si-2" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div id="dis-sb-2" style="width:26px;height:26px;border-radius:50%;border:2px solid #2d3148;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#334155;flex-shrink:0">3</div>
               <span style="font-size:10px;font-weight:600;color:#334155;white-space:nowrap">Load Assignment</span>
             </div>
-            <div style="flex:1;height:1px;background:#2d3148;margin:0 6px"></div>
+            <div id="dis-conn-2" style="flex:1;height:2px;background:#2d3148;margin:0 6px;border-radius:1px;transition:background .4s"></div>
             <div id="dis-si-3" style="display:flex;align-items:center;gap:6px;flex-shrink:0">
               <div id="dis-sb-3" style="width:26px;height:26px;border-radius:50%;border:2px solid #2d3148;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#334155;flex-shrink:0">4</div>
               <span style="font-size:10px;font-weight:600;color:#334155;white-space:nowrap">Confirm</span>
@@ -1195,17 +1234,15 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
                 </label>
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-              <div>
-                <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Priority</label>
-                <select id="dis-priority" class="form-select" style="width:100%">
-                  <option>LOW</option><option selected>MEDIUM</option><option>HIGH</option><option>URGENT</option>
-                </select>
-              </div>
-              <div>
-                <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Special Instructions</label>
-                <input id="dis-notes" class="form-input" placeholder="Optional…" style="width:100%">
-              </div>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Priority</label>
+              <select id="dis-priority" class="form-select" style="width:100%">
+                <option>LOW</option><option selected>MEDIUM</option><option>HIGH</option><option>URGENT</option>
+              </select>
+            </div>
+            <div style="margin-bottom:10px">
+              <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Special Instructions</label>
+              <textarea id="dis-notes" class="form-input" placeholder="Optional &#8212; handle with care, temperature requirements, etc." style="width:100%;resize:vertical;min-height:52px;font-family:inherit;font-size:12px"></textarea>
             </div>
             <button onclick="disNextStep(1)" style="width:100%;padding:10px;background:linear-gradient(135deg,#534ab7,#7c74e8);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;transition:opacity .2s">Next: Route Selection →</button>
           </div>
@@ -1434,10 +1471,21 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
          PAGE 4: LOAD OPTIMIZER
     ═══════════════════════════════════ -->
     <div class="page" id="page-load" style="display:none;overflow-y:auto">
-      <div style="display:grid;grid-template-columns:40% 60%;gap:18px;height:100%;min-height:0">
+      <!-- Page Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid var(--border)">
+        <div>
+          <div style="font-size:20px;font-weight:800;color:var(--text-primary);letter-spacing:-.4px">Load Optimizer</div>
+          <div style="font-size:12px;color:var(--text-muted);margin-top:3px">Bin packing · 0/1 Knapsack DP · First-Fit Decreasing · Centre-of-Mass analysis</div>
+        </div>
+        <div style="display:flex;gap:8px">
+          <div style="padding:5px 12px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(124,116,232,.1);color:var(--purple);border:1px solid rgba(124,116,232,.2)">Exact Optimal</div>
+          <div style="padding:5px 12px;border-radius:20px;font-size:10px;font-weight:600;background:rgba(16,185,129,.08);color:var(--green);border:1px solid rgba(16,185,129,.2)">● Live</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:40% 60%;gap:18px;min-height:0">
 
         <!-- ═══ LEFT COLUMN ═══ -->
-        <div style="overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:4px">
+        <div style="display:flex;flex-direction:column;gap:14px">
 
           <!-- SECTION 1: Truck Selector -->
           <div class="card">
@@ -1615,25 +1663,30 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
             </div>
 
             <!-- Stats bar -->
-            <div id="lo-stats-bar" style="margin-top:8px;padding:8px 10px;background:#070b0f;border-radius:4px;font-family:monospace;font-size:9px;color:#334155;line-height:1.8">
-              First-Fit Decreasing | Complexity: O(n log n) | Approx: ≤(11/9)·OPT | Packages: — | Utilization: — | Runtime: &lt;1ms
+            <div id="lo-stats-bar" style="margin-top:10px;padding:10px 12px;background:#070b0f;border:1px solid #1a1f2e;border-radius:6px;font-family:monospace;font-size:10px;color:#334155;line-height:2;display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center">
+              <span style="color:#475569">FFD Algorithm</span><span style="color:#2d3148">|</span>
+              <span>Complexity: <span style="color:#a5b4fc">O(n log n)</span></span><span style="color:#2d3148">|</span>
+              <span>Approx: <span style="color:#a5b4fc">≤(11/9)·OPT</span></span><span style="color:#2d3148">|</span>
+              <span>Packages: <span id="lo-sb-pkgs" style="color:#f1f5f9">—</span></span><span style="color:#2d3148">|</span>
+              <span>Utilization: <span id="lo-sb-util" style="color:#10b981">—</span></span><span style="color:#2d3148">|</span>
+              <span>Runtime: <span style="color:#10b981">&lt;1ms</span></span>
             </div>
 
             <!-- Package detail card -->
-            <div id="lo-pkg-detail" style="display:none;margin-top:8px;padding:10px 12px;background:#0d1117;border:1px solid #2d3148;border-radius:6px;font-size:11px;color:#94a3b8;line-height:1.7">
+            <div id="lo-pkg-detail" style="display:none;margin-top:8px;padding:12px 14px;background:#0a0f16;border:1px solid #2d3148;border-left:3px solid var(--purple);border-radius:6px;font-size:11px;color:#94a3b8;line-height:1.8;animation:slideDown .25s ease">
             </div>
 
             <!-- Download button -->
-            <button onclick="loDownloadPDF()" style="width:100%;margin-top:10px;padding:8px;background:#0d1117;color:#475569;border:1px solid #2d3148;border-radius:6px;font-size:11px;cursor:pointer;font-family:inherit;transition:all .2s" onmouseover="this.style.color='#f1f5f9'" onmouseout="this.style.color='#475569'">&#x2B07; Download Load Plan PDF</button>
+            <button onclick="loDownloadPDF()" style="width:100%;margin-top:10px;padding:10px;background:linear-gradient(135deg,#0d1117,#161b26);color:#475569;border:1px solid #2d3148;border-radius:6px;font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all .2s;display:flex;align-items:center;justify-content:center;gap:6px" onmouseover="this.style.color='#f1f5f9';this.style.borderColor='#534ab7'" onmouseout="this.style.color='#475569';this.style.borderColor='#2d3148'">&#x2B07;&nbsp; Download Load Plan PDF</button>
           </div>
 
           <!-- Algorithm Explainer -->
           <div class="card" style="padding:0;overflow:hidden">
-            <div onclick="loToggleExplainer()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;background:#161b26">
-              <div style="font-size:12px;font-weight:600;color:#94a3b8">&#x25BC; How the Algorithms Work</div>
-              <div style="font-size:10px;color:#334155">Click to expand</div>
+            <div id="lo-exp-toggle" onclick="loToggleExplainer()" style="display:flex;justify-content:space-between;align-items:center;padding:12px 14px;cursor:pointer;background:#161b26;transition:background .2s" onmouseover="this.style.background='#1e2436'" onmouseout="this.style.background='#161b26'">
+              <div style="font-size:12px;font-weight:600;color:#94a3b8;display:flex;align-items:center;gap:8px"><span id="lo-exp-arrow" style="font-size:10px;transition:transform .3s">▶</span> How the Algorithms Work</div>
+              <div id="lo-exp-hint" style="font-size:10px;color:#334155">Click to expand</div>
             </div>
-            <div id="lo-explainer" style="display:none;padding:14px;display:none">
+            <div id="lo-explainer" style="display:none;padding:14px">
               <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
 
                 <!-- Knapsack -->
@@ -1689,62 +1742,223 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
     <!-- ═══════════════════════════════════
          PAGE 5: INVENTORY & QR
     ═══════════════════════════════════ -->
-    <div class="page" id="page-inventory" style="display:none">
-      <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;height:100%">
-        <div style="overflow-y:auto">
-          <div class="section-header" style="margin-bottom:20px">
-            <div>
-              <div class="section-title" style="font-size:18px">Inventory &amp; QR Management</div>
-              <div class="section-sub">Hub stock levels, RFID scan history &amp; QR code lookup</div>
-            </div>
-            <button class="btn-primary" onclick="openQRModal()">📷 Scan QR Code</button>
-          </div>
+    <div class="page" id="page-inventory" style="display:none;overflow-y:auto;padding:0">
+      <!-- Sub-tab nav -->
+      <div style="display:flex;align-items:center;gap:0;border-bottom:1px solid var(--border);padding:0 24px;background:var(--bg-secondary);flex-shrink:0;position:sticky;top:0;z-index:10">
+        <button id="inv-tab-0" onclick="invSwitchTab(0)" style="padding:14px 18px;font-size:12px;font-weight:600;color:var(--purple);border:none;border-bottom:2px solid var(--purple);background:none;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap">Hub Inventory</button>
+        <button id="inv-tab-1" onclick="invSwitchTab(1)" style="padding:14px 18px;font-size:12px;font-weight:600;color:var(--text-muted);border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap">QR Generator</button>
+        <button id="inv-tab-2" onclick="invSwitchTab(2)" style="padding:14px 18px;font-size:12px;font-weight:600;color:var(--text-muted);border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap">Scan Log</button>
+        <button id="inv-tab-3" onclick="invSwitchTab(3)" style="padding:14px 18px;font-size:12px;font-weight:600;color:var(--text-muted);border:none;border-bottom:2px solid transparent;background:none;cursor:pointer;font-family:inherit;transition:all .2s;white-space:nowrap">Package Tracker</button>
+        <div style="margin-left:auto;display:flex;align-items:center;gap:8px;padding:8px 0">
+          <button onclick="openQRModal()" style="padding:6px 14px;background:var(--purple-tint);color:var(--purple);border:1px solid rgba(124,116,232,.3);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">📷 Scan QR</button>
+          <button onclick="invSimRFID()" style="padding:6px 14px;background:rgba(16,185,129,.08);color:var(--green);border:1px solid rgba(16,185,129,.25);border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit">📡 RFID Scan</button>
+        </div>
+      </div>
+      <div style="padding:20px">
 
-          <div class="card">
-            <div class="section-title" style="margin-bottom:14px">Hub Inventory Status</div>
-            <table class="htable">
-              <thead><tr><th>Hub</th><th>City</th><th>In-Stock</th><th>Outbound</th><th>Utilisation</th><th>Status</th></tr></thead>
-              <tbody id="inv-body">
-                <!-- populated by JS -->
-              </tbody>
-            </table>
+      <!-- ════ TAB 0: HUB INVENTORY ════ -->
+      <div id="inv-panel-0">
+        <!-- Summary cards -->
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
+          <div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+            <div style="font-size:20px;font-weight:800;color:var(--text-primary)" id="inv-stat-total">247</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;margin-top:2px">Total Packages</div>
+          </div>
+          <div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+            <div style="font-size:20px;font-weight:800;color:#38bdf8">89</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;margin-top:2px">In Transit</div>
+          </div>
+          <div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+            <div style="font-size:20px;font-weight:800;color:var(--purple)">112</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;margin-top:2px">At Hub</div>
+          </div>
+          <div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+            <div style="font-size:20px;font-weight:800;color:var(--amber)">23</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;margin-top:2px">Awaiting Dispatch</div>
+          </div>
+          <div style="padding:12px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px">
+            <div style="font-size:20px;font-weight:800;color:var(--green)">23</div>
+            <div style="font-size:9px;color:var(--text-muted);text-transform:uppercase;margin-top:2px">Delivered Today</div>
           </div>
         </div>
-
-        <div style="overflow-y:auto;display:flex;flex-direction:column;gap:14px">
-          <div class="card">
-            <div class="section-title" style="margin-bottom:12px">Recent Scans</div>
-            <div id="inv-scan-log" style="max-height:300px;overflow-y:auto">
-              <div style="font-size:11px;color:var(--text-muted);font-style:italic;text-align:center;padding:20px 0">No scans recorded yet</div>
-            </div>
-            <div style="border-top:1px solid var(--border);margin-top:10px;padding-top:10px">
-              <button class="btn-primary" style="width:100%" onclick="simulateInventoryScan()">📡 Simulate RFID Scan</button>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="section-title" style="margin-bottom:12px">Quick Stats</div>
-            <div style="display:flex;flex-direction:column;gap:10px">
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span style="color:var(--text-muted)">Total packages tracked</span>
-                <span style="color:var(--text-primary);font-weight:600">247</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span style="color:var(--text-muted)">RFID-tagged</span>
-                <span style="color:var(--green);font-weight:600">239 (96.8%)</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span style="color:var(--text-muted)">Scans today</span>
-                <span style="color:var(--text-primary);font-weight:600">84</span>
-              </div>
-              <div style="display:flex;justify-content:space-between;font-size:12px">
-                <span style="color:var(--text-muted)">Scan accuracy</span>
-                <span style="color:var(--green);font-weight:600">99.2%</span>
-              </div>
+        <!-- Filter row -->
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+          <select id="inv-hub-filter" onchange="invFilterTable()" style="padding:7px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-primary);outline:none;font-family:inherit;cursor:pointer">
+            <option value="">All Hubs</option><option value="BEN">BEN Hubs</option><option value="HYD">HYD Hubs</option><option value="Coastal">Coastal Hubs</option>
+          </select>
+          <select id="inv-status-filter" onchange="invFilterTable()" style="padding:7px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-primary);outline:none;font-family:inherit;cursor:pointer">
+            <option value="">All Status</option><option value="OK">OK</option><option value="BUSY">BUSY</option><option value="CRITICAL">CRITICAL</option>
+          </select>
+          <input id="inv-search" oninput="invFilterTable()" placeholder="Search packages…" style="padding:7px 12px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-primary);outline:none;font-family:inherit;flex:1;min-width:160px">
+          <span id="inv-bulk-bar" style="display:none;gap:6px">
+            <button onclick="invBulkAction('dispatch')" style="padding:6px 12px;background:rgba(16,185,129,.12);color:var(--green);border:1px solid rgba(16,185,129,.25);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit">✓ Mark Dispatched</button>
+            <button onclick="invBulkAction('report')" style="padding:6px 12px;background:var(--purple-tint);color:var(--purple);border:1px solid rgba(124,116,232,.25);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit">⬇ Report</button>
+            <button onclick="invBulkAction('print')" style="padding:6px 12px;background:var(--bg-card);color:var(--text-secondary);border:1px solid var(--border);border-radius:5px;font-size:10px;font-weight:600;cursor:pointer;font-family:inherit">🖨 Labels</button>
+          </span>
+        </div>
+        <!-- Main table -->
+        <div class="card" style="padding:0;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:11px" id="inv-main-table">
+            <thead>
+              <tr style="background:#161b26;border-bottom:1px solid #1e2130">
+                <th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase;width:28px"><input type="checkbox" id="inv-chk-all" onchange="invToggleAll(this)" style="accent-color:var(--purple)"></th>
+                <th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Hub Name</th>
+                <th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">City</th>
+                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:600;color:#38bdf8;text-transform:uppercase">IN</th>
+                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:600;color:#f97316;text-transform:uppercase">OUT</th>
+                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Stock</th>
+                <th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Capacity</th>
+                <th style="padding:8px 10px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Utilization</th>
+                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Status</th>
+                <th style="padding:8px 10px;text-align:center;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Updated</th>
+              </tr>
+            </thead>
+            <tbody id="inv-body"></tbody>
+          </table>
+          <!-- Pagination -->
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid #1e2130;font-size:10px;color:#475569">
+            <span id="inv-page-info">Showing 1–10 of 20</span>
+            <div style="display:flex;gap:6px">
+              <button id="inv-prev" onclick="invChangePage(-1)" style="padding:4px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text-secondary);cursor:pointer;font-family:inherit">← Prev</button>
+              <button id="inv-next" onclick="invChangePage(1)"  style="padding:4px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:4px;font-size:10px;color:var(--text-secondary);cursor:pointer;font-family:inherit">Next →</button>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- ════ TAB 1: QR GENERATOR ════ -->
+      <div id="inv-panel-1" style="display:none">
+        <div style="display:grid;grid-template-columns:380px 1fr;gap:20px;align-items:start">
+          <!-- Left: form -->
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div class="card">
+              <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:14px;border-left:3px solid var(--purple);padding-left:10px">Generate Package Barcodes</div>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div>
+                  <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Group Number</label>
+                  <div style="display:flex;gap:6px;align-items:center">
+                    <input id="qrg-group" class="form-input" value="GRP-2024-001" style="flex:1;font-family:monospace;font-size:12px">
+                    <button onclick="qrgRefreshGroup()" style="padding:8px 10px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px" title="Generate new group ID">↻</button>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                  <div>
+                    <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Origin</label>
+                    <select id="qrg-origin" class="form-select" style="width:100%" onchange="qrgUpdatePreview()">
+                      <option value="BEN" selected>BEN — Bengaluru</option><option value="HYD">HYD — Hyderabad</option>
+                      <option value="MUM">MUM — Mumbai</option><option value="VIZ">VIZ — Vizag</option><option value="COC">COC — Cochin</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Destination</label>
+                    <select id="qrg-dest" class="form-select" style="width:100%" onchange="qrgUpdatePreview()">
+                      <option value="MUM" selected>MUM — Mumbai</option><option value="BEN">BEN — Bengaluru</option>
+                      <option value="HYD">HYD — Hyderabad</option><option value="VIZ">VIZ — Vizag</option><option value="COC">COC — Cochin</option>
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Packages in Group</label>
+                  <input id="qrg-count" type="number" min="1" max="100" value="4" class="form-input" style="width:100%" oninput="qrgUpdatePreview()">
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">Package Type</label>
+                  <div style="display:flex;gap:8px">
+                    <button id="qrg-type-std" onclick="qrgSetType('STANDARD')" style="flex:1;padding:8px;border-radius:6px;border:2px solid var(--purple);background:var(--purple-tint);color:var(--purple);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">STANDARD</button>
+                    <button id="qrg-type-frg" onclick="qrgSetType('FRAGILE')" style="flex:1;padding:8px;border-radius:6px;border:2px solid #2d3148;background:#161b26;color:#475569;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">⚠ FRAGILE</button>
+                  </div>
+                </div>
+                <div>
+                  <label style="display:block;font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px">Special Handling</label>
+                  <input id="qrg-handling" class="form-input" placeholder="e.g. Keep upright, temperature-sensitive" style="width:100%">
+                </div>
+                <!-- Live preview -->
+                <div style="padding:10px 12px;background:#070b0f;border:1px solid #1e2130;border-radius:6px">
+                  <div style="font-size:9px;color:#334155;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">QR String Format Preview</div>
+                  <div style="font-size:9px;color:#475569;margin-bottom:4px">PK{N}G{GROUP}{ORIGIN}{DEST}</div>
+                  <div id="qrg-preview" style="font-family:monospace;font-size:10px;color:#a5b4fc;line-height:1.8;word-break:break-all">PK1G1BENMUM, PK2G1BENMUM…</div>
+                </div>
+                <button id="qrg-gen-btn" onclick="qrgGenerate()" style="width:100%;padding:11px;background:linear-gradient(135deg,#534ab7,#7c74e8);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Generate QR Codes</button>
+                <button id="qrg-pdf-btn" onclick="qrgDownloadPDF()" style="display:none;width:100%;padding:10px;background:linear-gradient(135deg,#065f46,#10b981);color:#fff;border:none;border-radius:6px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit">⬇ Download All as PDF</button>
+              </div>
+            </div>
+          </div>
+          <!-- Right: QR grid -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+              <div>
+                <div style="font-size:14px;font-weight:700;color:var(--text-primary)" id="qrg-grid-title">Generated QR Codes</div>
+                <div style="font-size:10px;color:#475569;margin-top:2px" id="qrg-grid-sub">Select options and click Generate</div>
+              </div>
+              <button onclick="window.print()" style="padding:6px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary);cursor:pointer;font-family:inherit">🖨 Print</button>
+            </div>
+            <div id="qrg-grid" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px">
+              <div style="padding:20px;text-align:center;color:#334155;font-size:11px;grid-column:1/-1;border:1px dashed #1e2130;border-radius:8px;padding:30px">No QR codes generated yet. Fill the form and click Generate.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ TAB 2: SCAN LOG ════ -->
+      <div id="inv-panel-2" style="display:none">
+        <!-- Top bar -->
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px">
+            <span style="color:var(--green);font-weight:700" id="sl-count">47 scans today</span>
+            <span style="color:#334155">·</span>
+            <span style="color:#475569">12 RFID</span>
+            <span style="color:#334155">·</span>
+            <span style="color:#475569">35 QR</span>
+          </div>
+          <div style="margin-left:auto;display:flex;gap:8px">
+            <select id="sl-time" style="padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-primary);outline:none;font-family:inherit;cursor:pointer">
+              <option>Last Hour</option><option selected>Today</option><option>Last 7 Days</option>
+            </select>
+            <select id="sl-type" style="padding:6px 10px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-primary);outline:none;font-family:inherit;cursor:pointer">
+              <option value="">All Types</option><option value="INBOUND">INBOUND</option><option value="OUTBOUND">OUTBOUND</option><option value="DUPLICATE">DUPLICATE</option>
+            </select>
+            <button onclick="slExportCSV()" style="padding:6px 14px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary);cursor:pointer;font-family:inherit">⬇ Export CSV</button>
+          </div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <table style="width:100%;border-collapse:collapse;font-size:11px">
+            <thead>
+              <tr style="background:#161b26;border-bottom:1px solid #1e2130">
+                <th style="padding:8px 12px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Timestamp</th>
+                <th style="padding:8px 12px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Package ID</th>
+                <th style="padding:8px 12px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Hub</th>
+                <th style="padding:8px 12px;text-align:center;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Scan Type</th>
+                <th style="padding:8px 12px;text-align:left;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Action</th>
+                <th style="padding:8px 12px;text-align:center;font-size:9px;font-weight:600;color:#334155;text-transform:uppercase">Method</th>
+              </tr>
+            </thead>
+            <tbody id="sl-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ════ TAB 3: PACKAGE TRACKER ════ -->
+      <div id="inv-panel-3" style="display:none">
+        <!-- Search bar -->
+        <div style="display:flex;gap:8px;margin-bottom:16px">
+          <input id="pt-search" class="form-input" placeholder="Enter Package ID (e.g. PK1G1BENMUM) or scan QR…" style="flex:1;font-size:13px;padding:12px 16px">
+          <button onclick="ptSearch()" style="padding:12px 24px;background:linear-gradient(135deg,#534ab7,#7c74e8);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit">Track →</button>
+        </div>
+        <!-- Placeholder / Result -->
+        <div id="pt-placeholder" style="text-align:center;padding:60px 20px;color:#334155">
+          <div style="font-size:48px;margin-bottom:12px">📦</div>
+          <div style="font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:6px">Track Any Package</div>
+          <div style="font-size:12px;color:#475569">Enter a package ID above to see its full journey timeline</div>
+          <div style="margin-top:16px;display:flex;justify-content:center;gap:8px;flex-wrap:wrap">
+            <button onclick="ptTrack('PK1G1BENMUM')" style="padding:6px 14px;background:var(--purple-tint);color:var(--purple);border:1px solid rgba(124,116,232,.3);border-radius:20px;font-size:11px;cursor:pointer;font-family:inherit;font-family:monospace">PK1G1BENMUM</button>
+            <button onclick="ptTrack('S03')" style="padding:6px 14px;background:var(--purple-tint);color:var(--purple);border:1px solid rgba(124,116,232,.3);border-radius:20px;font-size:11px;cursor:pointer;font-family:inherit;font-family:monospace">S03</button>
+            <button onclick="ptTrack('PK3G1BENVIZ')" style="padding:6px 14px;background:var(--purple-tint);color:var(--purple);border:1px solid rgba(124,116,232,.3);border-radius:20px;font-size:11px;cursor:pointer;font-family:inherit;font-family:monospace">PK3G1BENVIZ</button>
+          </div>
+        </div>
+        <div id="pt-result" style="display:none"></div>
+      </div>
+
+      </div><!-- /padding wrapper -->
     </div><!-- /page-inventory -->
 
 
@@ -2724,39 +2938,668 @@ function buildFleetStatusList() {
     </div>`).join('');
 }
 
-/* ────────────────────────────────────────────────
-   INVENTORY TABLE
-──────────────────────────────────────────────── */
-const INV_HUBS = [
-  { name: 'Koyambedu',    city: 'Chennai',   id: 'W1',     inStock: 24, outbound: 8  },
-  { name: 'Tambaram',     city: 'Chennai',   id: 'W3',     inStock: 17, outbound: 5  },
-  { name: 'Guindy Depot', city: 'Chennai',   id: 'W4',     inStock: 31, outbound: 12 },
-  { name: 'Peenya Hub',   city: 'Bengaluru', id: 'BEN_H1', inStock: 19, outbound: 6  },
-  { name: 'Patancheru',   city: 'Hyderabad', id: 'HYD_H1', inStock: 22, outbound: 9  },
-  { name: 'Mumbai Port',  city: 'Mumbai',    id: 'MUM_H1', inStock: 44, outbound: 18 },
-  { name: 'Vizag Port',   city: 'Vizag',     id: 'VIZ_H1', inStock: 13, outbound: 4  },
+/* ════════════════════════════════════════════════
+   INVENTORY MANAGEMENT — WMS Engine
+════════════════════════════════════════════════ */
+
+/* ─── Full hub dataset ─── */
+const INV_DATA = [
+  { id:'BEN_K1', name:'Koyambedu Market',     city:'BEN', group:'BEN',     inbound:3,  outbound:7,  stock:12, capMT:3000,  status:'OK',       updated:'2m ago'  },
+  { id:'BEN_T1', name:'Tambaram Hub',          city:'BEN', group:'BEN',     inbound:11, outbound:5,  stock:8,  capMT:1500,  status:'BUSY',     updated:'1m ago'  },
+  { id:'BEN_G1', name:'Guindy Depot',          city:'BEN', group:'BEN',     inbound:4,  outbound:1,  stock:15, capMT:5000,  status:'OK',       updated:'5m ago'  },
+  { id:'BEN_P1', name:'BEN Peenya',            city:'BEN', group:'BEN',     inbound:10, outbound:7,  stock:22, capMT:1700,  status:'BUSY',     updated:'3m ago'  },
+  { id:'HYD_P1', name:'HYD Patancheru',        city:'HYD', group:'HYD',     inbound:4,  outbound:7,  stock:6,  capMT:2000,  status:'OK',       updated:'4m ago'  },
+  { id:'MUM_P1', name:'Mumbai Port',           city:'MUM', group:'Coastal', inbound:3,  outbound:1,  stock:45, capMT:50000, status:'OK',       updated:'8m ago'  },
+  { id:'VIZ_P1', name:'Vizag Port',            city:'VIZ', group:'Coastal', inbound:10, outbound:7,  stock:31, capMT:30000, status:'BUSY',     updated:'2m ago'  },
+  { id:'COC_P1', name:'Cochin Port',           city:'COC', group:'Coastal', inbound:5,  outbound:3,  stock:18, capMT:25000, status:'OK',       updated:'6m ago'  },
+  { id:'BEN_H1', name:'Peenya Industrial Hub', city:'BEN', group:'BEN',     inbound:34, outbound:12, stock:22, capMT:8000,  status:'OK',       updated:'8m ago'  },
+  { id:'BEN_H2', name:'Whitefield Logistics',  city:'BEN', group:'BEN',     inbound:18, outbound:9,  stock:9,  capMT:4000,  status:'OK',       updated:'9m ago'  },
+  { id:'BEN_H3', name:'Electronic City Hub',   city:'BEN', group:'BEN',     inbound:51, outbound:20, stock:31, capMT:5000,  status:'BUSY',     updated:'10m ago' },
+  { id:'BEN_H4', name:'Yeshwanthpur Depot',    city:'BEN', group:'BEN',     inbound:62, outbound:28, stock:34, capMT:5000,  status:'CRITICAL', updated:'11m ago' },
+  { id:'HYD_H1', name:'Patancheru Hub',        city:'HYD', group:'HYD',     inbound:29, outbound:11, stock:18, capMT:4500,  status:'OK',       updated:'7m ago'  },
+  { id:'HYD_H2', name:'LB Nagar Depot',        city:'HYD', group:'HYD',     inbound:44, outbound:19, stock:25, capMT:4500,  status:'BUSY',     updated:'10m ago' },
+  { id:'HYD_H3', name:'Shamshabad Freight',    city:'HYD', group:'HYD',     inbound:38, outbound:14, stock:24, capMT:5500,  status:'OK',       updated:'9m ago'  },
+  { id:'HYD_H4', name:'KPHB Logistics Park',   city:'HYD', group:'HYD',     inbound:57, outbound:22, stock:35, capMT:5000,  status:'CRITICAL', updated:'12m ago' },
+  { id:'COC_H1', name:'Cochin Port Terminal',  city:'COC', group:'Coastal', inbound:20, outbound:8,  stock:12, capMT:35000, status:'OK',       updated:'8m ago'  },
+  { id:'VIZ_H1', name:'Vizag Port Warehouse',  city:'VIZ', group:'Coastal', inbound:25, outbound:10, stock:15, capMT:40000, status:'OK',       updated:'9m ago'  },
+  { id:'MUM_H1', name:'Nhava Sheva CFS',       city:'MUM', group:'Coastal', inbound:73, outbound:31, stock:42, capMT:80000, status:'BUSY',     updated:'10m ago' },
+  { id:'BEN_H5', name:'Nagasandra Hub',        city:'BEN', group:'BEN',     inbound:27, outbound:10, stock:17, capMT:4000,  status:'OK',       updated:'7m ago'  },
 ];
 
-function buildInventoryTable() {
+/* ─── Legacy alias so DOMContentLoaded still works ─── */
+const INV_HUBS = INV_DATA;
+function buildInventoryTable() { invRenderHubs(); }
+
+/* ─── State ─── */
+let invCurrentTab  = 0;
+let invPage        = 0;
+const INV_PAGE_SZ  = 8;
+let invFiltered    = [...INV_DATA];
+let invSelected    = new Set();
+let invQRType      = 'STANDARD';
+
+/* ─── Scan log seed data ─── */
+const SL_SEED = [
+  { ts:'12:01:44', pkg:'PK1G1BENMUM', hub:'BEN_H1', type:'INBOUND',  action:'Received at hub',    method:'QR'   },
+  { ts:'11:58:22', pkg:'S03',         hub:'HYD_H2', type:'OUTBOUND', action:'Loaded onto T3',     method:'RFID' },
+  { ts:'11:55:09', pkg:'PK3G1BENVIZ', hub:'VIZ_H1', type:'INBOUND',  action:'Received at hub',    method:'QR'   },
+  { ts:'11:50:33', pkg:'PK2G2HYDMUM', hub:'HYD_H1', type:'OUTBOUND', action:'Dispatched',         method:'RFID' },
+  { ts:'11:44:17', pkg:'S07',         hub:'MUM_H1', type:'INBOUND',  action:'Cleared customs',    method:'QR'   },
+  { ts:'11:38:05', pkg:'PK4G1BENMUM', hub:'BEN_H3', type:'OUTBOUND', action:'En-route scan',      method:'RFID' },
+  { ts:'11:30:51', pkg:'PK1G2HYDVIZ', hub:'HYD_H4', type:'INBOUND',  action:'Arrived at depot',   method:'QR'   },
+  { ts:'11:22:40', pkg:'S12',         hub:'COC_H1', type:'DUPLICATE','action':'Duplicate scan',   method:'QR'   },
+  { ts:'11:15:18', pkg:'PK5G1BENMUM', hub:'CHE_H1', type:'INBOUND',  action:'Received at hub',    method:'RFID' },
+  { ts:'11:08:03', pkg:'PK2G1BENMUM', hub:'BEN_H2', type:'OUTBOUND', action:'Loaded onto T1',     method:'QR'   },
+  { ts:'11:01:29', pkg:'S18',         hub:'VIZ_H2', type:'INBOUND',  action:'Delivery confirmed', method:'RFID' },
+  { ts:'10:55:14', pkg:'PK6G1BENMUM', hub:'BEN_H6', type:'OUTBOUND', action:'Dispatched',         method:'QR'   },
+];
+
+let SL_DATA = [...SL_SEED];
+
+/* ─── Tab switcher ─── */
+function invSwitchTab(n) {
+  invCurrentTab = n;
+  for (let i = 0; i < 4; i++) {
+    const btn   = document.getElementById('inv-tab-' + i);
+    const panel = document.getElementById('inv-panel-' + i);
+    if (!btn || !panel) continue;
+    const active = i === n;
+    btn.style.color       = active ? 'var(--purple)' : 'var(--text-muted)';
+    btn.style.borderBottom = active ? '2px solid var(--purple)' : '2px solid transparent';
+    panel.style.display   = active ? 'block' : 'none';
+  }
+  if (n === 0) invRenderHubs();
+  if (n === 1) { qrgUpdatePreview(); }
+  if (n === 2) slRenderLog();
+}
+
+/* ─── Hub Inventory: render ─── */
+function invRenderHubs() {
   const tbody = document.getElementById('inv-body');
   if (!tbody) return;
-  tbody.innerHTML = INV_HUBS.map(h => {
-    const util = Math.round((h.inStock / 50) * 100);
-    const busy = h.inStock > 25;
-    return `<tr>
-      <td style="font-weight:600;color:var(--text-primary)">${h.name}</td>
-      <td style="color:var(--text-muted)">${h.city}</td>
-      <td>${h.inStock}</td>
-      <td>${h.outbound}</td>
-      <td>
+  invSelected.clear();
+  const start = invPage * INV_PAGE_SZ;
+  const rows  = invFiltered.slice(start, start + INV_PAGE_SZ);
+
+  const STATUS_STYLE = {
+    OK:       { bg:'rgba(16,185,129,.12)',  color:'#10b981' },
+    BUSY:     { bg:'rgba(245,158,11,.12)',  color:'#f59e0b' },
+    CRITICAL: { bg:'rgba(239,68,68,.12)',   color:'#ef4444' },
+  };
+
+  tbody.innerHTML = rows.map((h, ri) => {
+    const capMT  = h.capMT || (h.capacity * 100);
+    const utilPct = ((h.stock / capMT) * 100).toFixed(1);
+    const barW   = Math.min(parseFloat(utilPct) * 20, 100);
+    const barC   = h.status === 'CRITICAL' ? '#ef4444' : h.status === 'BUSY' ? '#f59e0b' : '#7c74e8';
+    const txtC   = h.status === 'CRITICAL' ? '#ef4444' : h.status === 'BUSY' ? '#f59e0b' : '#10b981';
+    const st     = STATUS_STYLE[h.status] || STATUS_STYLE.OK;
+    const pulse  = h.status === 'CRITICAL' ? 'animation:pulse 1.2s infinite' : '';
+    return `<tr id="inv-row-${ri}" style="border-bottom:1px solid #0d1117;transition:background .15s"
+      onmouseenter="this.style.background='rgba(124,116,232,.04)'"
+      onmouseleave="this.style.background='transparent'">
+      <td style="padding:8px 10px;width:28px">
+        <input type="checkbox" data-id="${h.id}" onchange="invRowCheck(this)"
+          style="accent-color:var(--purple);cursor:pointer">
+      </td>
+      <td style="padding:8px 10px">
+        <div style="font-size:11px;font-weight:700;color:#f1f5f9">${h.name}</div>
+        <div style="font-size:9px;color:#334155;font-family:monospace;margin-top:1px">${h.id}</div>
+      </td>
+      <td style="padding:8px 10px;font-size:11px;color:#94a3b8">${h.city}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#38bdf8">${h.inbound}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#f97316">${h.outbound}</td>
+      <td style="padding:8px 10px;text-align:center;font-size:12px;font-weight:700;color:#f1f5f9">${h.stock} pkgs</td>
+      <td style="padding:8px 10px;font-size:11px;color:#64748b;white-space:nowrap">${capMT.toLocaleString()}mt</td>
+      <td style="padding:8px 10px;min-width:110px">
         <div style="display:flex;align-items:center;gap:6px">
-          <div class="pbar-bg" style="flex:1;width:80px"><div class="pbar-fill ${util>70?'pbar-amber':'pbar-purple'}" style="width:${util}%"></div></div>
-          <span style="font-size:10px;color:var(--text-muted)">${util}%</span>
+          <div style="flex:1;height:4px;background:#1e2130;border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${barW}%;background:${barC};border-radius:2px;transition:width .5s"></div>
+          </div>
+          <span style="font-size:10px;color:${txtC};font-weight:600;min-width:38px">${utilPct}%</span>
         </div>
       </td>
-      <td><span class="pill ${busy?'pill-amber':'pill-green'}">${busy?'BUSY':'OK'}</span></td>
+      <td style="padding:8px 10px;text-align:center">
+        <span style="padding:3px 9px;border-radius:10px;background:${st.bg};color:${st.color};font-size:9px;font-weight:700;${pulse}">${h.status}</span>
+      </td>
+      <td style="padding:8px 10px;text-align:center;font-size:10px;color:#475569">${h.updated}</td>
     </tr>`;
   }).join('');
+
+  /* Row click → expand package detail */
+  rows.forEach((h, ri) => {
+    const row = document.getElementById('inv-row-' + ri);
+    if (row) row.addEventListener('click', (e) => {
+      if (e.target.type === 'checkbox') return;
+      invExpandRow(h, ri);
+    });
+  });
+
+  /* pagination info */
+  const total = invFiltered.length;
+  const s = start + 1, e = Math.min(start + INV_PAGE_SZ, total);
+  const pi = document.getElementById('inv-page-info');
+  if (pi) pi.textContent = total ? `Showing ${s}–${e} of ${total}` : 'No results';
+  const prev = document.getElementById('inv-prev');
+  const next = document.getElementById('inv-next');
+  if (prev) prev.disabled = invPage === 0;
+  if (next) next.disabled = e >= total;
+}
+
+/* ─── Row expand: inline package sub-table ─── */
+const PKG_TYPES = ['STANDARD','FRAGILE','STANDARD','PERISHABLE','STANDARD','FRAGILE'];
+const PKG_STATUS_MAP = {
+  OK:       { bg:'rgba(16,185,129,.12)',  color:'#10b981', label:'AT HUB'    },
+  BUSY:     { bg:'rgba(245,158,11,.12)',  color:'#f59e0b', label:'IN TRANSIT' },
+  CRITICAL: { bg:'rgba(239,68,68,.12)',   color:'#ef4444', label:'DELAYED'   },
+};
+let invExpandedRow = -1;
+
+function invExpandRow(h, ri) {
+  /* Collapse if already open */
+  const existing = document.getElementById('inv-expand-' + ri);
+  if (existing) {
+    existing.remove();
+    if (invExpandedRow === ri) { invExpandedRow = -1; return; }
+  }
+  /* Remove any other expand rows */
+  document.querySelectorAll('[id^="inv-expand-"]').forEach(el => el.remove());
+  invExpandedRow = ri;
+
+  const row = document.getElementById('inv-row-' + ri);
+  if (!row) return;
+
+  const pkgCount = Math.max(2, Math.min(h.stock, 6));
+  const origins  = ['BEN','HYD','MUM','VIZ','COC'];
+  const dests    = ['MUM','VIZ','BEN','COC','HYD'];
+  const pkgRows  = Array.from({length: pkgCount}, (_, pi) => {
+    const type   = PKG_TYPES[pi % PKG_TYPES.length];
+    const grp    = `G${String(pi+1).padStart(2,'0')}`;
+    const orig   = origins[pi % origins.length];
+    const dest   = dests[pi % dests.length];
+    const code   = `PK${pi+1}${grp}${orig}${dest}`;
+    const weight = [45,82,130,60,95,110][pi % 6];
+    const scTime = `${String(8+pi).padStart(2,'0')}:${['14','32','05','48','22','37'][pi%6]}`;
+    const stMap  = PKG_STATUS_MAP[h.status] || PKG_STATUS_MAP.OK;
+    const typeC  = type === 'FRAGILE' ? '#f59e0b' : type === 'PERISHABLE' ? '#38bdf8' : '#64748b';
+    return `<tr style="border-bottom:1px solid #0a0d10">
+      <td style="padding:5px 12px;font-family:monospace;font-size:10px;color:#a5b4fc;font-weight:700">${code}</td>
+      <td style="padding:5px 12px;font-size:10px;color:#475569">${grp}</td>
+      <td style="padding:5px 12px"><span style="color:${typeC};font-size:9px;font-weight:700">${type}</span></td>
+      <td style="padding:5px 12px;font-size:10px;color:#64748b">${weight}kg</td>
+      <td style="padding:5px 12px;font-size:10px;color:#475569">${orig}→${dest}</td>
+      <td style="padding:5px 12px;font-family:monospace;font-size:9px;color:#334155">${scTime}</td>
+      <td style="padding:5px 12px"><span style="padding:2px 8px;border-radius:10px;background:${stMap.bg};color:${stMap.color};font-size:8px;font-weight:700">${stMap.label}</span></td>
+    </tr>`;
+  }).join('');
+
+  const expandTr = document.createElement('tr');
+  expandTr.id = 'inv-expand-' + ri;
+  expandTr.innerHTML = `
+    <td colspan="10" style="padding:0;background:#080c10;border-bottom:2px solid #7c74e8">
+      <div style="animation:slideDown .25s ease;padding:10px 14px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:#7c74e8;text-transform:uppercase;letter-spacing:.07em">
+            📦 ${h.name} — ${pkgCount} Package${pkgCount>1?'s':''} in Stock
+          </div>
+          <button onclick="document.getElementById('inv-expand-${ri}').remove()" style="background:none;border:none;color:#334155;cursor:pointer;font-size:14px;line-height:1">✕</button>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:10px">
+          <thead>
+            <tr style="border-bottom:1px solid #1e2130">
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Package ID</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Group</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Type</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Weight</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Origin→Dest</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Scanned In</th>
+              <th style="padding:5px 12px;text-align:left;font-size:8px;font-weight:600;color:#334155;text-transform:uppercase">Status</th>
+            </tr>
+          </thead>
+          <tbody>${pkgRows}</tbody>
+        </table>
+      </div>
+    </td>`;
+  row.insertAdjacentElement('afterend', expandTr);
+  row.style.background = 'rgba(124,116,232,.08)';
+  row.style.borderLeft = '3px solid #7c74e8';
+}
+
+/* ─── Filter + search ─── */
+function invFilterTable() {
+  const hubF  = document.getElementById('inv-hub-filter')?.value  || '';
+  const statF = document.getElementById('inv-status-filter')?.value || '';
+  const q     = (document.getElementById('inv-search')?.value || '').toLowerCase();
+  invFiltered = INV_DATA.filter(h =>
+    (!hubF  || h.group === hubF) &&
+    (!statF || h.status === statF) &&
+    (!q || h.name.toLowerCase().includes(q) || h.city.toLowerCase().includes(q) || h.id.toLowerCase().includes(q))
+  );
+  invPage = 0;
+  invRenderHubs();
+}
+
+/* ─── Checkbox logic ─── */
+function invToggleAll(cb) {
+  document.querySelectorAll('#inv-body input[type=checkbox]').forEach(el => {
+    el.checked = cb.checked;
+    if (cb.checked) invSelected.add(el.dataset.id);
+    else invSelected.delete(el.dataset.id);
+  });
+  invUpdateBulkBar();
+}
+
+function invRowCheck(cb) {
+  if (cb.checked) invSelected.add(cb.dataset.id);
+  else invSelected.delete(cb.dataset.id);
+  invUpdateBulkBar();
+}
+
+function invUpdateBulkBar() {
+  const bar = document.getElementById('inv-bulk-bar');
+  if (!bar) return;
+  bar.style.display = invSelected.size > 0 ? 'flex' : 'none';
+}
+
+function invBulkAction(action) {
+  const count = invSelected.size;
+  if (!count) return;
+  const msgs = { dispatch:'Marked dispatched', report:'Report downloaded', print:'Labels sent to printer' };
+  showToaster(`${msgs[action] || action}: ${count} hub(s)`, action === 'dispatch' ? 'green' : 'purple');
+  if (action === 'dispatch') {
+    invSelected.forEach(id => {
+      const h = INV_DATA.find(x => x.id === id);
+      if (h) { h.outbound += Math.floor(h.stock * 0.5); h.stock = Math.ceil(h.stock * 0.5); }
+    });
+    invSelected.clear();
+    document.getElementById('inv-chk-all').checked = false;
+    invUpdateBulkBar();
+    invRenderHubs();
+  }
+}
+
+/* ─── Pagination ─── */
+function invChangePage(dir) {
+  const maxPage = Math.ceil(invFiltered.length / INV_PAGE_SZ) - 1;
+  invPage = Math.max(0, Math.min(invPage + dir, maxPage));
+  invRenderHubs();
+}
+
+/* ─── RFID Simulation ─── */
+const INV_RFID_PKG = ['PK1G1BENMUM','S03','PK4G2HYDVIZ','S12','PK7G3COCMUM','S18','PK2G1BENMUM','S07'];
+function invSimRFID() {
+  const pkg = INV_RFID_PKG[Math.floor(Math.random() * INV_RFID_PKG.length)];
+  const hub = INV_DATA[Math.floor(Math.random() * INV_DATA.length)];
+  const types = ['INBOUND','OUTBOUND'];
+  const actions = { INBOUND:['Received at hub','Arrived at depot','Returned scan'], OUTBOUND:['Loaded onto truck','Dispatched','En-route scan'] };
+  const scanType = types[Math.round(Math.random())];
+  const action = actions[scanType][Math.floor(Math.random() * 3)];
+  const now = new Date();
+  const ts = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+  const entry = { ts, pkg, hub: hub.id, type: scanType, action, method: 'RFID' };
+  SL_DATA.unshift(entry);
+  if (SL_DATA.length > 80) SL_DATA.pop();
+  /* update scan log counter */
+  const cnt = document.getElementById('sl-count');
+  if (cnt) cnt.textContent = SL_DATA.length + ' scans today';
+  /* live update scan log if visible */
+  if (invCurrentTab === 2) slRenderLog();
+  showToaster(`📡 ${pkg} → ${hub.name} [${scanType}]`, 'green');
+}
+
+/* ════════════════════════════════════════════════
+   QR GENERATOR
+════════════════════════════════════════════════ */
+
+function qrgRefreshGroup() {
+  const now = new Date();
+  const id = `GRP-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}${String(now.getDate()).padStart(2,'0')}-${String(Math.floor(Math.random()*900)+100)}`;
+  const el = document.getElementById('qrg-group');
+  if (el) { el.value = id; qrgUpdatePreview(); }
+}
+
+function qrgSetType(t) {
+  invQRType = t;
+  const std = document.getElementById('qrg-type-std');
+  const frg = document.getElementById('qrg-type-frg');
+  if (!std || !frg) return;
+  if (t === 'STANDARD') {
+    std.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid var(--purple);background:var(--purple-tint);color:var(--purple);font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';
+    frg.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid #2d3148;background:#161b26;color:#475569;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';
+  } else {
+    frg.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid #f59e0b;background:rgba(245,158,11,.1);color:#f59e0b;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';
+    std.style.cssText = 'flex:1;padding:8px;border-radius:6px;border:2px solid #2d3148;background:#161b26;color:#475569;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit';
+  }
+  qrgUpdatePreview();
+}
+
+function qrgUpdatePreview() {
+  const grp    = (document.getElementById('qrg-group')?.value || 'GRP-2024-001').replace(/[^A-Z0-9-]/gi,'');
+  const origin = document.getElementById('qrg-origin')?.value || 'BEN';
+  const dest   = document.getElementById('qrg-dest')?.value   || 'MUM';
+  const count  = Math.min(+document.getElementById('qrg-count')?.value || 4, 100);
+  const grpNum = grp.split('-').pop() || '001';
+  const prev   = document.getElementById('qrg-preview');
+  if (!prev) return;
+  const codes = Array.from({length: Math.min(count, 4)}, (_,i) =>
+    `PK${i+1}G${grpNum}${origin}${dest}`
+  );
+  if (count > 4) codes.push(`… (+${count-4} more)`);
+  prev.textContent = codes.join(', ');
+}
+
+function qrgGenerate() {
+  const grp    = (document.getElementById('qrg-group')?.value || 'GRP-2024-001').replace(/[^A-Z0-9-]/gi,'');
+  const origin = document.getElementById('qrg-origin')?.value || 'BEN';
+  const dest   = document.getElementById('qrg-dest')?.value   || 'MUM';
+  const count  = Math.min(+document.getElementById('qrg-count')?.value || 4, 100);
+  const handling = document.getElementById('qrg-handling')?.value || '';
+  const grpNum = grp.split('-').pop() || '001';
+  const grid   = document.getElementById('qrg-grid');
+  const title  = document.getElementById('qrg-grid-title');
+  const sub    = document.getElementById('qrg-grid-sub');
+  const pdfBtn = document.getElementById('qrg-pdf-btn');
+  if (!grid) return;
+
+  const btn = document.getElementById('qrg-gen-btn');
+  if (btn) { btn.textContent = 'Generating…'; btn.disabled = true; }
+
+  if (title) title.textContent = `${count} QR Codes — ${grp}`;
+  if (sub)   sub.textContent   = `${origin} → ${dest} · ${invQRType}${handling?' · '+handling:''}`;
+
+  setTimeout(() => {
+    grid.innerHTML = Array.from({length: count}, (_, i) => {
+      const code   = `PK${i+1}G${grpNum}${origin}${dest}`;
+      const qrUrl  = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(code)}&bgcolor=0d1117&color=a5b4fc&qzone=1`;
+      const typeBadge = invQRType === 'FRAGILE'
+        ? `<span style="display:inline-block;padding:2px 8px;background:rgba(245,158,11,.15);color:#f59e0b;border:1px solid rgba(245,158,11,.3);border-radius:10px;font-size:8px;font-weight:700;margin-top:4px">⚠ FRAGILE</span>`
+        : `<span style="display:inline-block;padding:2px 8px;background:rgba(71,85,105,.15);color:#64748b;border:1px solid rgba(71,85,105,.2);border-radius:10px;font-size:8px;font-weight:700;margin-top:4px">STANDARD</span>`;
+      return `<div style="background:#0d1117;border:1px solid ${invQRType==='FRAGILE'?'rgba(245,158,11,.25)':'#1e2130'};border-radius:10px;padding:14px;text-align:center;position:relative;overflow:hidden;animation:fadeIn .3s ${i*60}ms both;transition:border-color .2s,transform .2s" onmouseenter="this.style.transform='translateY(-2px)';this.style.borderColor='${invQRType==='FRAGILE'?'#f59e0b':'#7c74e8'}'" onmouseleave="this.style.transform='';this.style.borderColor='${invQRType==='FRAGILE'?'rgba(245,158,11,.25)':'#1e2130'}'">
+        <div style="position:absolute;top:8px;right:8px;font-size:9px;color:#334155;font-family:monospace">#${String(i+1).padStart(2,'0')}</div>
+        <img src="${qrUrl}" width="120" height="120" loading="lazy"
+          style="display:block;margin:0 auto 10px;border-radius:6px;image-rendering:pixelated"
+          onerror="this.src='https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(code)}'"
+          alt="QR ${code}">
+        <div style="font-family:monospace;font-size:10px;color:#a5b4fc;margin-bottom:3px;word-break:break-all;font-weight:700">${code}</div>
+        <div style="font-size:9px;color:#475569;margin-bottom:4px">${origin} → ${dest} · Group ${grpNum}</div>
+        ${typeBadge}
+        <div style="font-size:8px;color:#334155;margin-top:5px">Not yet scanned</div>
+        <button onclick="qrgCopyCode('${code}')" style="margin-top:8px;width:100%;padding:4px 8px;background:rgba(124,116,232,.1);color:var(--purple);border:1px solid rgba(124,116,232,.2);border-radius:5px;font-size:9px;cursor:pointer;font-family:inherit;transition:background .2s" onmouseenter="this.style.background='rgba(124,116,232,.2)'" onmouseleave="this.style.background='rgba(124,116,232,.1)'">📋 Copy ID</button>
+      </div>`;
+    }).join('');
+
+    if (btn) { btn.textContent = 'Generate QR Codes'; btn.disabled = false; }
+    if (pdfBtn) pdfBtn.style.display = 'block';
+
+    /* Add to scan log */
+    const now = new Date();
+    const tstr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
+    SL_DATA.unshift({ ts: tstr, pkg:`${count}× G${grpNum}`, hub:'BEN_H1', type:'INBOUND', action:`QR batch generated (${origin}→${dest})`, method:'QR' });
+    showToaster(`✓ ${count} real QR codes generated for ${grp}`, 'purple');
+  }, 500);
+}
+
+function qrgCopyCode(code) {
+  navigator.clipboard?.writeText(code).catch(()=>{});
+  showToaster(`Copied: ${code}`, 'green');
+}
+
+function qrgDownloadPDF() {
+  showToaster('PDF export: requires Flask /api/qr/pdf endpoint', 'amber');
+}
+
+/* ════════════════════════════════════════════════
+   SCAN LOG
+════════════════════════════════════════════════ */
+
+function slRenderLog() {
+  const tbody = document.getElementById('sl-tbody');
+  if (!tbody) return;
+  const typeF = document.getElementById('sl-type')?.value || '';
+  const rows  = SL_DATA.filter(e => !typeF || e.type === typeF).slice(0, 50);
+
+  const TYPE_STYLE = {
+    INBOUND:   { bg:'rgba(16,185,129,.12)',  color:'#10b981', label:'INBOUND'   },
+    OUTBOUND:  { bg:'rgba(56,189,248,.12)',  color:'#38bdf8', label:'OUTBOUND'  },
+    DUPLICATE: { bg:'rgba(239,68,68,.12)',   color:'#ef4444', label:'DUPLICATE' },
+  };
+  const METHOD_ICON = { QR:'📷', RFID:'📡' };
+
+  tbody.innerHTML = rows.map((e, ri) => {
+    const st = TYPE_STYLE[e.type] || TYPE_STYLE.INBOUND;
+    return `<tr style="border-bottom:1px solid #0d1117;transition:background .15s;animation:fadeIn .25s ${ri*30}ms both"
+      onmouseenter="this.style.background='rgba(124,116,232,.04)'"
+      onmouseleave="this.style.background='transparent'">
+      <td style="padding:8px 12px;font-family:monospace;font-size:10px;color:#475569;white-space:nowrap">${e.ts}</td>
+      <td style="padding:8px 12px;font-family:monospace;font-size:10px;font-weight:700;color:#a5b4fc">${e.pkg}</td>
+      <td style="padding:8px 12px;font-size:10px;color:#94a3b8">${e.hub}</td>
+      <td style="padding:8px 12px;text-align:center">
+        <span style="padding:2px 8px;border-radius:10px;background:${st.bg};color:${st.color};font-size:9px;font-weight:700">${st.label}</span>
+      </td>
+      <td style="padding:8px 12px;font-size:10px;color:#64748b">${e.action}</td>
+      <td style="padding:8px 12px;text-align:center;font-size:13px" title="${e.method}">${METHOD_ICON[e.method]||'•'}</td>
+    </tr>`;
+  }).join('');
+}
+
+function slExportCSV() {
+  const header = 'Timestamp,Package ID,Hub,Type,Action,Method\n';
+  const rows   = SL_DATA.map(e =>
+    `${e.ts},${e.pkg},${e.hub},${e.type},"${e.action}",${e.method}`
+  ).join('\n');
+  const blob = new Blob([header + rows], {type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `scan_log_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  showToaster(`Exported ${SL_DATA.length} scan events as CSV`, 'green');
+}
+
+/* ════════════════════════════════════════════════
+   PACKAGE TRACKER
+════════════════════════════════════════════════ */
+
+/* Journey templates keyed by package-ID prefix */
+const PT_JOURNEYS = {
+  'PK1G1BENMUM': {
+    origin:'BEN_H1', dest:'MUM_H1', status:'IN TRANSIT',
+    steps:[
+      { label:'Order Created',      hub:'BEN_H1 — Peenya',     ts:'2026-05-06 07:30', done:true  },
+      { label:'QR Generated',       hub:'BEN_H1 — Peenya',     ts:'2026-05-06 08:14', done:true  },
+      { label:'Picked Up',          hub:'BEN_H1 — Peenya',     ts:'2026-05-06 09:00', done:true  },
+      { label:'In Transit',         hub:'NH48 — En route',     ts:'2026-05-06 10:30', done:true  },
+      { label:'Arrived at Hub',     hub:'MUM_H1 — Nhava Sheva',ts:'2026-05-06 18:00', done:false },
+      { label:'Out for Delivery',   hub:'MUM City Zone',       ts:'2026-05-07 09:00', done:false },
+      { label:'Delivered',          hub:'—',                   ts:'2026-05-07 12:00', done:false },
+    ],
+  },
+  'S03': {
+    origin:'HYD_H2', dest:'VIZ_H1', status:'DELIVERED',
+    steps:[
+      { label:'Order Created',    hub:'HYD_H2 — LB Nagar', ts:'2026-05-05 08:00', done:true },
+      { label:'QR Generated',     hub:'HYD_H2 — LB Nagar', ts:'2026-05-05 08:45', done:true },
+      { label:'Picked Up',        hub:'HYD_H2 — LB Nagar', ts:'2026-05-05 09:30', done:true },
+      { label:'In Transit',       hub:'NH16 — En route',   ts:'2026-05-05 11:00', done:true },
+      { label:'Arrived at Hub',   hub:'VIZ_H1 — Vizag Port',ts:'2026-05-05 17:30',done:true },
+      { label:'Out for Delivery', hub:'Vizag City',        ts:'2026-05-05 19:00', done:true },
+      { label:'Delivered',        hub:'Recipient confirmed',ts:'2026-05-05 20:15',done:true },
+    ],
+  },
+  'PK3G1BENVIZ': {
+    origin:'BEN_H1', dest:'VIZ_H1', status:'LOADING',
+    steps:[
+      { label:'Order Created',  hub:'BEN_H1 — Peenya', ts:'2026-05-06 11:00', done:true  },
+      { label:'QR Generated',   hub:'BEN_H1 — Peenya', ts:'2026-05-06 11:55', done:true  },
+      { label:'Picked Up',      hub:'BEN_H1 — Peenya', ts:'2026-05-06 12:30', done:false },
+      { label:'In Transit',     hub:'NH44 — En route', ts:'—',               done:false },
+      { label:'Arrived at Hub', hub:'VIZ_H1',          ts:'—',               done:false },
+      { label:'Delivered',      hub:'—',               ts:'—',               done:false },
+    ],
+  },
+};
+
+const STATUS_COLOR = {
+  'IN TRANSIT':{ bg:'rgba(56,189,248,.12)', color:'#38bdf8' },
+  'DELIVERED':  { bg:'rgba(16,185,129,.12)', color:'#10b981' },
+  'LOADING':    { bg:'rgba(245,158,11,.12)', color:'#f59e0b' },
+  'DELAYED':    { bg:'rgba(239,68,68,.12)',  color:'#ef4444' },
+};
+
+function ptSearch() {
+  const q = (document.getElementById('pt-search')?.value || '').trim().toUpperCase();
+  if (!q) return;
+  ptTrack(q);
+}
+
+function ptTrack(id) {
+  const inp = document.getElementById('pt-search');
+  if (inp) inp.value = id;
+
+  const placeholder = document.getElementById('pt-placeholder');
+  const result      = document.getElementById('pt-result');
+  if (!result) return;
+
+  /* Fuzzy match: exact or prefix */
+  let key = id;
+  if (!PT_JOURNEYS[key]) {
+    key = Object.keys(PT_JOURNEYS).find(k => k.startsWith(id) || id.startsWith(k)) || null;
+  }
+
+  if (!key) {
+    /* Generate synthetic journey for unknown IDs */
+    const synth = {
+      origin:'BEN_H1', dest:'MUM_H1', status:'IN TRANSIT',
+      steps:[
+        { label:'Order Created', hub:'BEN_H1', ts:'2026-05-06 06:00', done:true  },
+        { label:'QR Generated',  hub:'BEN_H1', ts:'2026-05-06 06:30', done:true  },
+        { label:'Picked Up',     hub:'BEN_H1', ts:'2026-05-06 08:00', done:true  },
+        { label:'In Transit',    hub:'En route',ts:'2026-05-06 10:00',done:true  },
+        { label:'Delivered',     hub:'—',      ts:'—',               done:false },
+      ],
+    };
+    PT_JOURNEYS[id] = synth;
+    key = id;
+  }
+
+  const j   = PT_JOURNEYS[key];
+  const st  = STATUS_COLOR[j.status] || STATUS_COLOR['IN TRANSIT'];
+  const doneCount = j.steps.filter(s=>s.done).length;
+  const pct = Math.round((doneCount / j.steps.length) * 100);
+
+  if (placeholder) placeholder.style.display = 'none';
+  result.style.display = 'block';
+  result.style.animation = 'slideDown .3s ease';
+
+  result.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 340px;gap:20px;align-items:start">
+      <!-- Left: timeline -->
+      <div>
+        <div class="card" style="margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div>
+              <div style="font-size:16px;font-weight:800;color:#a5b4fc;font-family:monospace">${key}</div>
+              <div style="font-size:11px;color:#475569;margin-top:2px">${j.origin} → ${j.dest}</div>
+            </div>
+            <span style="padding:4px 12px;border-radius:10px;background:${st.bg};color:${st.color};font-size:11px;font-weight:700">${j.status}</span>
+          </div>
+          <!-- Progress bar -->
+          <div style="margin-bottom:16px">
+            <div style="display:flex;justify-content:space-between;font-size:10px;color:#475569;margin-bottom:4px">
+              <span>Journey Progress</span><span style="color:#7c74e8;font-weight:700">${pct}%</span>
+            </div>
+            <div style="height:6px;background:#1e2130;border-radius:3px;overflow:hidden">
+              <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#534ab7,#7c74e8);border-radius:3px;transition:width .8s ease"></div>
+            </div>
+          </div>
+          <!-- Timeline -->
+          <div style="display:flex;flex-direction:column;gap:0">
+            ${j.steps.map((s, si) => `
+            <div style="display:flex;gap:12px;align-items:flex-start">
+              <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0">
+                <div style="width:22px;height:22px;border-radius:50%;background:${s.done?'#10b981':'#1e2130'};border:2px solid ${s.done?'#10b981':'#2d3148'};display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .3s ${si*80}ms">
+                  ${s.done?'<svg width="10" height="10" viewBox="0 0 10 10"><polyline points="1.5,5 4,7.5 8.5,2.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>':''}
+                </div>
+                ${si < j.steps.length-1 ? `<div style="width:1px;height:28px;background:${s.done?'rgba(16,185,129,.4)':'#1e2130'}"></div>` : ''}
+              </div>
+              <div style="padding-bottom:20px;flex:1">
+                <div style="font-size:12px;font-weight:600;color:${s.done?'#f1f5f9':'#334155'}">${s.label}</div>
+                <div style="font-size:10px;color:#475569;margin-top:2px">${s.hub}</div>
+                <div style="font-size:9px;color:${s.ts==='—'?'#1e2130':'#334155'};font-family:monospace;margin-top:2px">${s.ts}</div>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>
+      </div>
+      <!-- Right: SVG mini-map -->
+      <div class="card">
+        <div style="font-size:12px;font-weight:700;color:#f1f5f9;margin-bottom:12px;border-left:3px solid #7c74e8;padding-left:8px">Route Map</div>
+        <svg width="100%" viewBox="0 0 300 200" style="border-radius:6px;background:#070b0f">
+          <!-- India outline (simplified) -->
+          <polyline points="60,20 80,15 110,18 140,10 170,14 200,12 230,20 240,40 245,70 240,100 230,130 210,155 190,170 165,180 140,185 115,178 90,165 70,145 55,120 45,90 48,60 55,40 60,20"
+            fill="none" stroke="#1e2130" stroke-width="1.5"/>
+          <!-- Route line -->
+          <line x1="${j.origin.includes('BEN')?85:j.origin.includes('HYD')?140:j.origin.includes('MUM')?55:200}"
+                y1="${j.origin.includes('BEN')?130:j.origin.includes('HYD')?110:j.origin.includes('MUM')?80:100}"
+                x2="${j.dest.includes('MUM')?55:j.dest.includes('VIZ')?215:j.dest.includes('BEN')?85:140}"
+                y2="${j.dest.includes('MUM')?80:j.dest.includes('VIZ')?100:j.dest.includes('BEN')?130:110}"
+                stroke="#7c74e8" stroke-width="2" stroke-dasharray="6 3" opacity="0.7"/>
+          <!-- Origin dot -->
+          <circle cx="${j.origin.includes('BEN')?85:j.origin.includes('HYD')?140:j.origin.includes('MUM')?55:200}"
+                  cy="${j.origin.includes('BEN')?130:j.origin.includes('HYD')?110:j.origin.includes('MUM')?80:100}"
+                  r="6" fill="#10b981"/>
+          <text x="${j.origin.includes('BEN')?93:j.origin.includes('HYD')?148:63}" y="${j.origin.includes('BEN')?127:j.origin.includes('HYD')?107:77}" font-size="8" fill="#10b981" font-family="Inter,system-ui">${j.origin.slice(0,3)}</text>
+          <!-- Dest dot -->
+          <circle cx="${j.dest.includes('MUM')?55:j.dest.includes('VIZ')?215:j.dest.includes('BEN')?85:140}"
+                  cy="${j.dest.includes('MUM')?80:j.dest.includes('VIZ')?100:j.dest.includes('BEN')?130:110}"
+                  r="6" fill="${pct===100?'#10b981':'#f59e0b'}"/>
+          <text x="${j.dest.includes('MUM')?63:j.dest.includes('VIZ')?223:93}" y="${j.dest.includes('MUM')?77:j.dest.includes('VIZ')?97:127}" font-size="8" fill="${pct===100?'#10b981':'#f59e0b'}" font-family="Inter,system-ui">${j.dest.slice(0,3)}</text>
+          <!-- Moving dot (midpoint if in transit) -->
+          ${pct>0&&pct<100?`<circle cx="${Math.round(
+            (j.origin.includes('BEN')?85:j.origin.includes('HYD')?140:55) * (1-pct/100) +
+            (j.dest.includes('MUM')?55:j.dest.includes('VIZ')?215:85) * (pct/100)
+          )}" cy="${Math.round(
+            (j.origin.includes('BEN')?130:j.origin.includes('HYD')?110:80) * (1-pct/100) +
+            (j.dest.includes('MUM')?80:j.dest.includes('VIZ')?100:130) * (pct/100)
+          )}" r="5" fill="#7c74e8"><animate attributeName="r" values="4;7;4" dur="1.5s" repeatCount="indefinite"/></circle>`:''}
+        </svg>
+        <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:10px">
+          <div style="padding:8px;background:#070b0f;border:1px solid #1e2130;border-radius:6px">
+            <div style="color:#334155;margin-bottom:2px">Progress</div>
+            <div style="font-weight:700;color:#7c74e8;font-size:14px">${pct}%</div>
+          </div>
+          <div style="padding:8px;background:#070b0f;border:1px solid #1e2130;border-radius:6px">
+            <div style="color:#334155;margin-bottom:2px">Steps Done</div>
+            <div style="font-weight:700;color:#10b981;font-size:14px">${doneCount}/${j.steps.length}</div>
+          </div>
+        </div>
+        <button onclick="ptReset()" style="margin-top:12px;width:100%;padding:8px;background:var(--bg-card);border:1px solid var(--border);border-radius:6px;font-size:11px;color:var(--text-secondary);cursor:pointer;font-family:inherit">← Track Another</button>
+      </div>
+    </div>`;
+}
+
+function ptReset() {
+  const placeholder = document.getElementById('pt-placeholder');
+  const result      = document.getElementById('pt-result');
+  const inp         = document.getElementById('pt-search');
+  if (placeholder) placeholder.style.display = 'block';
+  if (result)      result.style.display = 'none';
+  if (inp)         inp.value = '';
+}
+
+/* ════════════════════════════════════════════════
+   INVENTORY INIT
+════════════════════════════════════════════════ */
+function invInit() {
+  invFiltered = [...INV_DATA];
+  invPage     = 0;
+  invSwitchTab(0);
+  /* Seed scan log count */
+  const cnt = document.getElementById('sl-count');
+  if (cnt) cnt.textContent = SL_DATA.length + ' scans today';
+  /* Auto-refresh scan log every 8s while tab is visible */
+  setInterval(() => {
+    if (invCurrentTab === 2) slRenderLog();
+  }, 8000);
 }
 
 /* ────────────────────────────────────────────────
@@ -2914,17 +3757,19 @@ function loBuildTruckGrid() {
     const totalW = t.shipments.reduce((s, p) => s + p.weight, 0);
     const pct = Math.min(Math.round((totalW / CAPACITY_KG) * 100), 100);
     const barColor = pct > 90 ? '#ef4444' : pct > 70 ? '#f59e0b' : '#7c74e8';
+    const selected = i === 0;
     return `<div id="lo-tc-${i}" onclick="loSelectTruck(${i})"
-      style="padding:10px;border-radius:6px;border:2px solid ${i===0?'#7c74e8':'#2d3148'};
-      background:${i===0?'rgba(124,116,232,.08)':'#161b26'};cursor:pointer;transition:all .2s">
-      <div style="display:flex;align-items:center;gap:7px;margin-bottom:6px">
-        <div style="width:10px;height:10px;border-radius:50%;background:${t.color};flex-shrink:0"></div>
+      style="padding:10px 11px;border-radius:7px;border:2px solid ${selected?'#7c74e8':'#2d3148'};
+      background:${selected?'rgba(124,116,232,.1)':'#161b26'};cursor:pointer;transition:all .2s;position:relative">
+      <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+        <div style="width:9px;height:9px;border-radius:50%;background:${t.color};flex-shrink:0;box-shadow:0 0 6px ${t.color}88"></div>
         <span style="font-size:12px;font-weight:700;color:#f1f5f9">${t.id}</span>
-        <span style="font-size:9px;color:#475569;margin-left:auto">${t.shipments.length} ship.</span>
+        <span style="font-size:9px;font-weight:600;background:rgba(255,255,255,.05);color:#475569;padding:1px 6px;border-radius:10px;margin-left:auto">${t.shipments.length} ship.</span>
       </div>
+      <div style="font-size:9px;color:#334155;margin-bottom:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${t.route}</div>
       <div style="font-size:9px;color:#475569;margin-bottom:5px">${totalW}kg / ${CAPACITY_KG}kg</div>
       <div style="height:3px;background:#1e2130;border-radius:2px;overflow:hidden">
-        <div style="height:100%;width:${pct}%;background:${barColor};transition:width .5s ease;border-radius:2px"></div>
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:2px;transition:width .5s ease"></div>
       </div>
     </div>`;
   }).join('');
@@ -3246,14 +4091,14 @@ function loUpdateOverlay(placements, items) {
   document.getElementById('lo-util-sub').textContent =
     `Container utilization saves ~${Math.round(totalW*0.02)}kg CO₂/trip`;
 
-  // Stats bar
-  document.getElementById('lo-stats-bar').innerHTML =
-    `<span style="color:#475569">FFD</span> | ` +
-    `Complexity: <span style="color:#a5b4fc">O(n log n)</span> | ` +
-    `Approx: <span style="color:#a5b4fc">≤(11/9)·OPT</span> | ` +
-    `Packages: <span style="color:#f1f5f9">${items.length}</span> | ` +
-    `Utilization: <span style="color:${+utilPct>90?'#ef4444':+utilPct>70?'#f59e0b':'#10b981'}">${utilPct}%</span> | ` +
-    `Runtime: <span style="color:#10b981">&lt;1ms</span>`;
+  // Stats bar — target the new span IDs
+  const pkgSpan  = document.getElementById('lo-sb-pkgs');
+  const utilSpan = document.getElementById('lo-sb-util');
+  if (pkgSpan)  pkgSpan.textContent  = items.length;
+  if (utilSpan) {
+    utilSpan.textContent = utilPct + '%';
+    utilSpan.style.color = +utilPct > 90 ? '#ef4444' : +utilPct > 70 ? '#f59e0b' : '#10b981';
+  }
 
   if (!placements || !placements.length) {
     // Hide CoM
@@ -3302,13 +4147,21 @@ function loUpdateOverlay(placements, items) {
 
 /* ─── Explainer toggle ─── */
 function loToggleExplainer() {
-  const el = document.getElementById('lo-explainer');
+  const el    = document.getElementById('lo-explainer');
+  const arrow = document.getElementById('lo-exp-arrow');
+  const hint  = document.getElementById('lo-exp-hint');
   if (!el) return;
-  const open = el.style.display !== 'none' && el.style.display !== '';
-  el.style.display = open ? 'none' : 'block';
-  if (!open) el.style.animation = 'slideDown .25s ease';
-  // animate FFD boxes demo
-  if (!open) setTimeout(loAnimateFFD, 200);
+  const isOpen = el.style.display === 'block';
+  el.style.display = isOpen ? 'none' : 'block';
+  if (!isOpen) {
+    el.style.animation = 'slideDown .25s ease';
+    if (arrow) arrow.style.transform = 'rotate(90deg)';
+    if (hint)  hint.textContent = 'Click to collapse';
+    setTimeout(loAnimateFFD, 200);
+  } else {
+    if (arrow) arrow.style.transform = 'rotate(0deg)';
+    if (hint)  hint.textContent = 'Click to expand';
+  }
 }
 
 function loAnimateFFD() {
@@ -3483,29 +4336,31 @@ function disNextStep(toStep) {
     const el = document.getElementById('dis-step-' + i);
     if (el) { el.style.display = 'none'; el.style.animation = ''; }
   }
-  // Update step bubbles
+  // Update step bubbles + connector lines
   for (let i=0; i<4; i++) {
-    const sb = document.getElementById('dis-sb-' + i);
-    const si = document.getElementById('dis-si-' + i);
+    const sb   = document.getElementById('dis-sb-' + i);
+    const si   = document.getElementById('dis-si-' + i);
+    const conn = document.getElementById('dis-conn-' + i);
     if (!sb || !si) continue;
     if (i < toStep) {
-      // completed
+      // completed — green checkmark
       sb.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#10b981;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0';
       sb.innerHTML = '<svg width="12" height="12" viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
       si.querySelector('span').style.color = '#10b981';
+      if (conn) conn.style.background = '#10b981';
     } else if (i === toStep) {
-      // active
-      sb.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#7c74e8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0';
+      // active — purple
+      sb.style.cssText = 'width:26px;height:26px;border-radius:50%;background:#7c74e8;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff;flex-shrink:0;box-shadow:0 0 0 3px rgba(124,116,232,.25)';
       sb.innerHTML = String(i+1);
       si.querySelector('span').style.color = '#a5b4fc';
     } else {
-      // future
+      // future — gray
       sb.style.cssText = 'width:26px;height:26px;border-radius:50%;border:2px solid #2d3148;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#334155;flex-shrink:0';
       sb.innerHTML = String(i+1);
       si.querySelector('span').style.color = '#334155';
     }
   }
-  // Show target step
+  // Show target step with animation
   const target = document.getElementById('dis-step-' + toStep);
   if (target) {
     target.style.display = 'block';
@@ -3671,8 +4526,23 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if (startPage === 'dispatch') { disInitDone = true; disInit(); }
 
+  // Init Inventory page when first visited
+  let invInitDone = false;
+  const inventoryPage = document.getElementById('page-inventory');
+  if (inventoryPage) {
+    const invObs = new MutationObserver(() => {
+      if (inventoryPage.classList.contains('active') && !invInitDone) {
+        invInitDone = true;
+        invInit();
+      }
+    });
+    invObs.observe(inventoryPage, { attributes: true, attributeFilter: ['class'] });
+  }
+  if (startPage === 'inventory') { invInitDone = true; invInit(); }
+
   // Polling for inventory log — update panel RFID log too
   setInterval(async () => {
+
     try {
       const r = await fetch('/api/inventory');
       const d = await r.json();

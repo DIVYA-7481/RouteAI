@@ -21,6 +21,7 @@ Complexity annotations follow CD343AI course units.
 import io
 import re
 import json
+import time as _time
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -69,6 +70,12 @@ _QR_PATTERN = re.compile(
     r"^PK(?P<pkg_num>\d+)G(?P<grp_num>\d+)"
     r"(?P<origin>[A-Z]{3})(?P<dest>[A-Z]{3})$"
 )
+
+# ─── Duplicate scan cooldown store (in-memory) ────────────────────────────────
+# Key: "{package_id}@{hub_id}"  Value: unix timestamp of last scan
+# Complexity — CD343AI Unit II — Hash Map O(1) per lookup/insert
+_scan_cooldown: dict[str, float] = {}
+_SCAN_COOLDOWN_S: int = 30   # seconds within which a re-scan is a DUPLICATE
 
 # ─────────────────────────────────────────────────────────────────────────────
 # FIREBASE INITIALISATION (lazy, safe)
@@ -606,6 +613,27 @@ def register_scan(
     ts      = timestamp or datetime.now(timezone.utc).isoformat()
     meta    = _parse_qr_string(qr_string)   # raises ValueError on bad string
     db      = _get_db()
+
+    # ── Duplicate check (30-second cooldown) ─────────────────────────────────
+    # Complexity: O(1) dict lookup
+    cooldown_key = f"{qr_string}@{hub_id}"
+    now_unix     = _time.time()
+    if cooldown_key in _scan_cooldown and (now_unix - _scan_cooldown[cooldown_key]) < _SCAN_COOLDOWN_S:
+        remaining = round(_SCAN_COOLDOWN_S - (now_unix - _scan_cooldown[cooldown_key]), 1)
+        logger.info("DUPLICATE scan suppressed: %s @ %s (cooldown %.1fs remaining).",
+                    qr_string, hub_id, remaining)
+        return {
+            "action":     "DUPLICATE",
+            "package_id": qr_string,
+            "hub_id":     hub_id,
+            "timestamp":  ts,
+            "metadata":   meta,
+            "status":     "DUPLICATE",
+            "message":    f"Duplicate scan within {_SCAN_COOLDOWN_S}s — ignored",
+            "cooldown_remaining_s": remaining,
+        }
+    _scan_cooldown[cooldown_key] = now_unix
+
     pkg_ref = db.collection("packages").document(qr_string)
     snap    = pkg_ref.get()
 
@@ -661,15 +689,36 @@ def register_scan(
                 "scan_history": history,
             })
 
+    # ── Persist scan event to scan_events collection ─────────────────────────
+    # Complexity: O(1) Firestore write (amortised)
+    event_doc = {
+        "package_id": qr_string,
+        "hub_id":     hub_id,
+        "action":     action,
+        "timestamp":  ts,
+        "method":     "QR",
+        "group_id":   f"G{meta['group_number']}",
+        "origin":     meta["origin"],
+        "destination": meta["destination"],
+    }
+    # Use timestamp as part of doc ID so newest sort by ID naturally
+    safe_ts = ts.replace(":", "-").replace(".", "-")
+    db.collection("scan_events").document(f"{safe_ts}_{qr_string}").set(event_doc)
+
     logger.info("Scan registered: %s action=%s hub=%s.", qr_string, action, hub_id)
-    return {
+    result = {
         "action":     action,
         "package_id": qr_string,
         "hub_id":     hub_id,
         "timestamp":  ts,
         "metadata":   meta,
-        "status":     scan_entry.get("action"),
+        "status":     action,
+        "message":    {
+            "INBOUND":  f"{qr_string} registered as INBOUND at {hub_id}",
+            "OUTBOUND": f"{qr_string} dispatched OUTBOUND from {hub_id}",
+        }.get(action, action),
     }
+    return result
 
 
 def get_inventory_status(hub_id: str) -> dict:
@@ -720,14 +769,70 @@ def get_inventory_status(hub_id: str) -> dict:
 # IN-MEMORY CACHE: last generated QR set per group (for PDF download)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_group_cache: dict[int, tuple[list[Image.Image], dict]] = {}
+_group_cache: dict[int, tuple[list, dict]] = {}
 
 
 def cache_group(group_number: int, images: list, metadata: dict) -> None:
-    """Store generated group data in module-level cache for PDF download."""
+    """Store generated group data in module-level cache for PDF download.
+
+    Complexity — CD343AI Unit II — Hash Map O(1):
+      Time:  O(1)
+      Space: O(N) where N = number of images stored
+    """
     _group_cache[group_number] = (images, metadata)
 
 
 def get_cached_group(group_number: int) -> Optional[tuple]:
-    """Retrieve cached group data; returns None if not found."""
+    """Retrieve cached group data; returns None if not found.
+
+    Complexity — CD343AI Unit II — Hash Map O(1):
+      Time:  O(1)
+      Space: O(1)
+    """
     return _group_cache.get(group_number)
+
+
+def get_scan_log(hub_id: Optional[str] = None, limit: int = 50) -> list:
+    """
+    Return recent scan events from the scan_events Firestore collection,
+    optionally filtered by hub_id. Results are sorted newest-first.
+
+    Args:
+        hub_id (str | None): if provided, filter events to this hub only
+        limit  (int):        maximum number of events to return (default 50)
+
+    Returns:
+        list of dicts, each with keys:
+            package_id, hub_id, action, timestamp, method,
+            group_id, origin, destination
+
+    Complexity — CD343AI Unit III — Linear Scan + Sort:
+      Time:  O(N log N) where N = total scan_events documents
+             O(K log K) with a Firestore index on hub_id
+      Space: O(N) in worst case; O(limit) after slicing
+    """
+    db   = _get_db()
+    docs = db.collection("scan_events").stream()
+
+    events: list[dict] = []
+    for doc in docs:
+        data = doc.to_dict()
+        if hub_id and data.get("hub_id") != hub_id:
+            continue
+        events.append({
+            "package_id":  data.get("package_id", ""),
+            "hub_id":      data.get("hub_id", ""),
+            "action":      data.get("action", ""),
+            "timestamp":   data.get("timestamp", ""),
+            "method":      data.get("method", "QR"),
+            "group_id":    data.get("group_id", ""),
+            "origin":      data.get("origin", ""),
+            "destination": data.get("destination", ""),
+        })
+
+    # Sort newest first (ISO timestamps sort lexicographically)
+    events.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+
+    logger.info("get_scan_log: returned %d events (hub_filter=%s).",
+                min(len(events), limit), hub_id or "all")
+    return events[:limit]
