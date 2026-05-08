@@ -556,7 +556,142 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
 .cf-title{font-size:10px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px}
 .cf-row{font-size:11px;color:var(--text-muted);margin-bottom:4px;display:flex;gap:6px}
 .cf-row span{color:var(--red);font-weight:600}
+
+/* ═══ ALGO VALIDATION PAGE ═══ */
+@keyframes nodePulse{0%,100%{r:26;opacity:.6}50%{r:30;opacity:1}}
+@keyframes dashAnim{to{stroke-dashoffset:-18}}
+@keyframes matFlash{0%{background:rgba(124,116,232,.55)}100%{background:transparent}}
+@keyframes barFill{from{width:0}to{width:var(--tw)}}
+@keyframes verdictGlow{0%,100%{box-shadow:0 0 0 0 rgba(124,116,232,0)}50%{box-shadow:0 0 20px 4px rgba(124,116,232,.25)}}
+
+/* ─── Page layout ─── */
+.av-page{padding:24px;font-family:'Inter',system-ui,sans-serif}
+.av-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px}
+.av-title{font-size:22px;font-weight:800;color:var(--text-primary);letter-spacing:-.4px}
+.av-subtitle{font-size:12px;color:var(--text-muted);margin-top:4px;max-width:520px;line-height:1.5}
+.av-badge-green{background:#0b2e1a;color:var(--green);border:1px solid rgba(16,185,129,.3);padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;white-space:nowrap}
+
+/* ─── Tabs ─── */
+.av-tab-bar{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0}
+.av-tab{padding:10px 20px;font-size:12px;font-weight:600;color:var(--text-muted);cursor:pointer;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;font-family:inherit}
+.av-tab:hover{color:var(--text-primary)}
+.av-tab.active-dijk{color:#7c74e8;border-bottom-color:#7c74e8}
+.av-tab.active-grdy{color:#f59e0b;border-bottom-color:#f59e0b}
+.av-tab.active-floy{color:#ef4444;border-bottom-color:#ef4444}
+.av-tab-panel{display:none}
+.av-tab-panel.active{display:block}
+
+/* ─── Graph + side panel layout ─── */
+.av-viz-wrap{display:grid;grid-template-columns:1fr 280px;gap:16px;background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.av-svg-wrap{padding:16px;background:#070b0f;position:relative}
+.av-side{padding:14px;overflow-y:auto;border-left:1px solid var(--border)}
+
+/* ─── SVG node states ─── */
+.node-default circle{fill:#161b26;stroke:#475569;stroke-width:2;transition:all .4s}
+.node-current circle{fill:#1e1b2e;stroke:#7c74e8;stroke-width:3}
+.node-current .pulse-ring{animation:nodePulse 1.2s ease infinite}
+.node-visited circle{fill:#0d3320;stroke:#10b981;stroke-width:2}
+.node-optimal circle{fill:#2d1b69;stroke:#7c74e8;stroke-width:3.5}
+.node-origin circle{stroke:#f59e0b;stroke-width:2.5}
+.node-dest circle{stroke:#10b981;stroke-width:2.5}
+
+/* ─── SVG edge states ─── */
+.edge-default{stroke:#2d3148;stroke-width:1.5;transition:all .3s}
+.edge-exploring{stroke:#f59e0b;stroke-width:2.5;stroke-dasharray:6 3;animation:dashAnim .6s linear infinite}
+.edge-rejected{stroke:rgba(239,68,68,.4);stroke-width:1;opacity:.35}
+.edge-optimal{stroke:#7c74e8;stroke-width:4}
+
+/* ─── Play controls ─── */
+.av-ctrl-bar{display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-secondary);border-top:1px solid var(--border)}
+.av-ctrl-btn{background:var(--bg-card);border:1px solid var(--border);color:var(--text-secondary);border-radius:6px;padding:5px 12px;font-size:12px;cursor:pointer;transition:all .2s;font-family:inherit}
+.av-ctrl-btn:hover{border-color:var(--purple);color:var(--purple)}
+.av-ctrl-btn.play-active{background:rgba(124,116,232,.15);border-color:var(--purple);color:var(--purple)}
+.av-step-ctr{font-size:11px;color:var(--text-muted);margin-left:auto}
+.av-speed-wrap{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--text-muted)}
+
+/* ─── Side panel internals ─── */
+.av-sp-section{margin-bottom:14px}
+.av-sp-title{font-size:9px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:7px}
+.av-pq-item{display:inline-flex;align-items:center;gap:4px;background:rgba(124,116,232,.1);border:1px solid rgba(124,116,232,.2);border-radius:12px;padding:2px 8px;font-size:10px;color:#a5b4fc;margin:2px}
+.av-pq-item.grdy{background:rgba(245,158,11,.1);border-color:rgba(245,158,11,.2);color:#f59e0b}
+.av-pq-item.floy{background:rgba(239,68,68,.1);border-color:rgba(239,68,68,.2);color:#ef4444}
+.av-visited-pill{display:inline-flex;align-items:center;background:#0d3320;border:1px solid rgba(16,185,129,.2);border-radius:10px;padding:2px 8px;font-size:10px;color:#10b981;margin:2px}
+.av-dist-table{width:100%;border-collapse:collapse;font-size:10px}
+.av-dist-table th{padding:3px 6px;color:var(--text-muted);text-align:left;font-size:9px;font-weight:600;text-transform:uppercase;border-bottom:1px solid var(--border)}
+.av-dist-table td{padding:3px 6px;color:var(--text-secondary);border-bottom:1px solid rgba(45,49,72,.3)}
+.av-dist-table tr.highlighted td{background:rgba(124,116,232,.08);color:#a5b4fc}
+.av-op-desc{font-size:11px;color:var(--text-secondary);line-height:1.55;padding:8px;background:rgba(0,0,0,.2);border-radius:6px;border-left:2px solid var(--purple)}
+.av-op-desc.grdy-desc{border-left-color:#f59e0b}
+.av-op-desc.floy-desc{border-left-color:#ef4444}
+.av-note{font-size:10px;color:var(--amber);margin-top:6px;padding:6px 8px;background:rgba(245,158,11,.07);border-radius:4px}
+
+/* ─── Floyd matrix ─── */
+.av-matrix-wrap{overflow-x:auto;padding:16px}
+.av-matrix{border-collapse:collapse;font-size:9px;font-family:monospace}
+.av-matrix th{padding:4px 8px;color:var(--text-muted);font-weight:600;text-align:center;border:1px solid var(--border);background:var(--bg-secondary)}
+.av-matrix td{padding:4px 8px;text-align:center;border:1px solid rgba(45,49,72,.4);transition:background .3s;color:var(--text-secondary);min-width:48px}
+.av-matrix td.diag{background:rgba(71,85,105,.1);color:var(--text-muted)}
+.av-matrix td.highlight-row,.av-matrix td.highlight-col{background:rgba(239,68,68,.07)}
+.av-matrix td.updated{animation:matFlash .6s ease}
+.av-matrix td.optimal-cell{background:rgba(124,116,232,.15);color:#a5b4fc;font-weight:700}
+.av-matrix td.inf{color:var(--text-muted);opacity:.4}
+
+/* ─── Complexity table ─── */
+.av-cmp-table{width:100%;border-collapse:collapse}
+.av-cmp-table th{padding:8px 10px;font-size:10px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.06em;border-bottom:1px solid var(--border);text-align:left}
+.av-cmp-table td{padding:8px 10px;font-size:11px;color:var(--text-secondary);border-bottom:1px solid rgba(45,49,72,.3)}
+.av-cmp-table tr.row-dijk td{background:rgba(16,185,129,.04)}
+.av-color-chip{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.av-ops-bar-bg{height:5px;background:rgba(255,255,255,.05);border-radius:3px;margin-top:4px;overflow:hidden}
+.av-ops-bar-fill{height:100%;border-radius:3px;animation:barFill .8s ease forwards}
+
+/* ─── Proof cards ─── */
+.av-proof-cards{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+.av-proof-card{padding:14px;border-radius:8px;border:1px solid var(--border);background:var(--bg-card)}
+.av-proof-icon{font-size:20px;margin-bottom:8px}
+.av-proof-title{font-size:11px;font-weight:700;color:var(--text-primary);margin-bottom:6px}
+.av-proof-body{font-size:10px;color:var(--text-muted);line-height:1.6}
+
+/* ─── Comparison mini graphs ─── */
+.av-compare-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.av-compare-card{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.av-compare-svg-wrap{background:#070b0f;padding:12px}
+.av-compare-info{padding:10px 12px}
+.av-compare-title{font-size:11px;font-weight:700;color:var(--text-primary)}
+.av-compare-badge{display:inline-block;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700;margin-top:4px}
+.av-compare-note{font-size:9px;color:var(--text-muted);margin-top:4px}
+
+/* ─── Cost comparison bars ─── */
+.av-cost-bar-wrap{margin-top:6px}
+.av-cost-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.av-cost-bar-label{font-size:11px;color:var(--text-secondary);min-width:160px}
+.av-cost-bar-track{flex:1;height:8px;background:rgba(255,255,255,.05);border-radius:4px;overflow:hidden}
+.av-cost-bar-fill{height:100%;border-radius:4px;animation:barFill .9s ease forwards}
+.av-cost-val{font-size:11px;font-weight:600;color:var(--text-primary);min-width:40px;text-align:right}
+.av-winner{background:#0b2e1a;color:var(--green);border:1px solid rgba(16,185,129,.3);padding:1px 8px;border-radius:10px;font-size:9px;font-weight:700;margin-left:4px}
+
+/* ─── Verdict ─── */
+.av-verdict{background:linear-gradient(135deg,#0e0a1a,#161026);border:1px solid rgba(124,116,232,.25);border-radius:10px;padding:24px;margin-top:20px;animation:verdictGlow 3s ease infinite}
+.av-verdict-title{font-size:18px;font-weight:800;color:var(--text-primary);text-align:center;margin-bottom:18px}
+.av-verdict-cols{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}
+.av-verdict-col{text-align:center;padding:16px;background:rgba(124,116,232,.05);border-radius:8px;border:1px solid rgba(124,116,232,.1)}
+.av-verdict-icon{font-size:24px;margin-bottom:8px}
+.av-verdict-col-title{font-size:11px;font-weight:700;color:#a5b4fc;margin-bottom:6px}
+.av-verdict-col-body{font-size:10px;color:var(--text-muted);line-height:1.6}
+.av-verdict-footer{text-align:center;font-size:10px;color:var(--text-muted);margin-top:14px;padding-top:14px;border-top:1px solid rgba(45,49,72,.4)}
+
+/* ─── Verdict badges for Greedy/Floyd ─── */
+.av-verdict-bad{background:#1f0a0a;border:1px solid rgba(239,68,68,.3);border-radius:8px;padding:12px 14px;margin-top:12px}
+.av-verdict-bad-title{font-size:10px;font-weight:700;color:var(--red);margin-bottom:6px}
+.av-verdict-bad-body{font-size:10px;color:var(--text-muted);line-height:1.6}
+.av-floyd-progress-wrap{margin-top:12px}
+.av-floyd-bar-row{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+.av-floyd-bar-label{font-size:10px;color:var(--text-secondary);min-width:140px}
+.av-floyd-bar-track{flex:1;height:6px;background:rgba(255,255,255,.05);border-radius:3px;overflow:hidden}
+.av-floyd-bar-fill{height:100%;border-radius:3px;animation:barFill 1s ease forwards}
+.av-floyd-val{font-size:10px;color:var(--text-muted);min-width:70px;text-align:right}
 </style>
+
 </head>
 <body>
 
@@ -639,7 +774,7 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
       <span class="label">Analytics</span>
     </a>
 
-    <a class="sb-item" id="nav-algoval" data-page="analytics" data-tooltip="Algorithm Validation" onclick="navigate('analytics');setTimeout(()=>document.getElementById('algoval-section').scrollIntoView({behavior:'smooth'}),200);return false">
+    <a class="sb-item" id="nav-algoval" data-page="algo-validation" data-tooltip="Algo Validation" onclick="navigate('algo-validation');return false">
       <span class="icon">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="6" cy="6" r="2"/><circle cx="18" cy="6" r="2"/><circle cx="12" cy="18" r="2"/>
@@ -2161,6 +2296,14 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
         </div>
       </div>
     </div>
+
+    <!-- ═══════════════════════════════════
+         PAGE 7: ALGORITHM VALIDATION
+    ═══════════════════════════════════ -->
+    <div class="page" id="page-algo-validation" style="display:none;overflow-y:auto;height:100%">
+    <!-- ALGO-VALIDATION-CONTENT-PLACEHOLDER -->
+    </div><!-- /page-algo-validation -->
+
   </div><!-- /pages -->
 </div><!-- /app-main -->
 
@@ -2204,22 +2347,24 @@ function toggleSidebar() {
    SPA ROUTING
 ──────────────────────────────────────────────── */
 const PAGE_META = {
-  overview:  { title: 'Overview',          breadcrumb: 'Dashboard' },
-  map:       { title: 'Fleet Map',         breadcrumb: 'Live Routes' },
-  dispatch:  { title: 'Dispatch Center',   breadcrumb: 'Shipments' },
-  load:      { title: 'Load Optimizer',    breadcrumb: 'Knapsack + FFD' },
-  inventory: { title: 'Inventory & QR',    breadcrumb: 'Stock Management' },
-  analytics: { title: 'Analytics',         breadcrumb: 'Performance Insights' },
+  overview:         { title: 'Overview',            breadcrumb: 'Dashboard' },
+  map:              { title: 'Fleet Map',           breadcrumb: 'Live Routes' },
+  dispatch:         { title: 'Dispatch Center',     breadcrumb: 'Shipments' },
+  load:             { title: 'Load Optimizer',      breadcrumb: 'Knapsack + FFD' },
+  inventory:        { title: 'Inventory & QR',      breadcrumb: 'Stock Management' },
+  analytics:        { title: 'Analytics',           breadcrumb: 'Performance Insights' },
+  'algo-validation':{ title: 'Algorithm Validation',breadcrumb: 'Dijkstra vs Greedy vs Floyd-Warshall' },
 };
 
 /* Page display: JS is the sole authority — no CSS specificity fights */
 const PAGE_DISPLAY = {
-  overview:  'block',
-  map:       'block',
-  dispatch:  'flex',
-  load:      'block',
-  inventory: 'block',
-  analytics: 'block',
+  overview:         'block',
+  map:              'block',
+  dispatch:         'flex',
+  load:             'block',
+  inventory:        'block',
+  analytics:        'block',
+  'algo-validation':'block',
 };
 
 function navigate(page) {
