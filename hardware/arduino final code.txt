@@ -1,0 +1,96 @@
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <PubSubClient.h>
+#include <SPI.h>
+#include <MFRC522.h>
+
+#define SS_PIN D4
+#define RST_PIN D3
+
+MFRC522 rfid(SS_PIN, RST_PIN);
+
+// your wifi
+const char* ssid = "Gupta g";
+const char* password = "hotspot pass";
+
+// HiveMQ credentials
+const char* mqtt_server = "";
+const int mqtt_port = ;
+const char* mqtt_user = "user";
+const char* mqtt_pass = "pass";
+
+WiFiClientSecure espClient;
+PubSubClient client(espClient);
+
+void connectWiFi() {
+  Serial.print("Connecting WiFi");
+
+  WiFi.begin(ssid, password);
+
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\nWiFi Connected!");
+}
+
+void connectMQTT() {
+  espClient.setInsecure();   // bypass certificate check for demo
+
+  while (!client.connected()) {
+    Serial.println("Connecting MQTT...");
+
+    if (client.connect("ESP8266Client", mqtt_user, mqtt_pass)) {
+      Serial.println("MQTT Connected!");
+    } else {
+      Serial.print("Failed, state=");
+      Serial.println(client.state());
+      delay(2000);
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(9600);
+
+  SPI.begin();
+  rfid.PCD_Init();
+
+  connectWiFi();
+
+  client.setServer(mqtt_server, mqtt_port);
+
+  Serial.println("Scan RFID card...");
+}
+
+void loop() {
+  if (!client.connected()) {
+    connectMQTT();
+  }
+
+  client.loop();
+
+  if (!rfid.PICC_IsNewCardPresent()) {
+    return;
+  }
+
+  if (!rfid.PICC_ReadCardSerial()) {
+    return;
+  }
+
+  String uid = "";
+
+  for (byte i = 0; i < rfid.uid.size; i++) {
+    uid += String(rfid.uid.uidByte[i], HEX);
+  }
+
+  Serial.print("Card UID: ");
+  Serial.println(uid);
+
+  client.publish("logistics/rfid/scan", uid.c_str());
+
+  Serial.println("UID sent to HiveMQ");
+
+  delay(2000);
+}
