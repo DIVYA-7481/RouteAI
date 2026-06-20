@@ -19,10 +19,13 @@ from fuzzywuzzy import process, fuzz as _fuzz
 
 from vrp_solver import (
     dijkstra_shortest_path, solve_vrp, map_disruption_to_edge,
-    NODES, ROAD_NAMES,
+    NODES, ROAD_NAMES, DEFAULT_CAPACITY_KG,
 )
 
 logger = logging.getLogger(__name__)
+
+# Slot weight constant for 3D bin-packing
+SLOT_WEIGHT_KG = 50  # kg per container slot
 
 # ─────────────────────────────────────────────────────────────────────────────
 # SHARED EXECUTION LOG HELPERS
@@ -298,7 +301,7 @@ class LoadAgent:
         bins: list[dict] = []
 
         for s in sorted_s:
-            slots_needed = max(1, math.ceil(s["weight_kg"] / 50))  # 50 kg per slot
+            slots_needed = max(1, math.ceil(s["weight_kg"] / SLOT_WEIGHT_KG))
             placed = False
             for b in bins:
                 if b["remaining"] >= slots_needed:
@@ -371,7 +374,7 @@ class LoadAgent:
             if not route["shipments"]:
                 continue
             tid      = route["truck"]["id"]
-            cap      = route["truck"].get("capacity_kg", 800)
+            cap      = route["truck"].get("capacity_kg", DEFAULT_CAPACITY_KG)
             shipments= route["shipments"]
 
             ks  = self.knapsack(shipments, cap)
@@ -525,26 +528,84 @@ class RiskAgent:
 
         extracted_road  = text
         extracted_type  = "protest"   # default
+        gemini_raw      = None        # raw Gemini response for logging
 
         if self._gemini is not None:
             try:
                 prompt = (
-                    "Extract the road name and event type from this logistics "
-                    f"disruption report. Reply in format: ROAD:<name> TYPE:<type>\n\n{text}"
+                    "You are a logistics disruption analyst. Analyze this report and extract:\n"
+                    "1. The road/highway name (e.g. NH48, NH44, NH65)\n"
+                    "2. The event type (e.g. flood, accident, protest, cyclone, construction)\n"
+                    "3. A brief severity assessment (HIGH/MEDIUM/LOW)\n"
+                    "4. A 1-2 sentence impact summary\n\n"
+                    "Respond ONLY with JSON like:\n"
+                    '{"road":"NH48","type":"flood","severity":"HIGH","impact":"Major delays expected on Chennai-Bengaluru corridor"}\n\n'
+                    f"Disruption report: {text}"
                 )
                 resp = self._gemini.generate_content(prompt)
                 raw  = resp.text.strip()
-                for token in raw.split():
-                    if token.startswith("ROAD:"):
-                        extracted_road = token[5:]
-                    elif token.startswith("TYPE:"):
-                        extracted_type = token[5:].lower()
+                gemini_raw = raw
+                # Try JSON parse first
+                import json as _json
+                try:
+                    # Extract JSON from markdown code blocks if present
+                    if '```' in raw:
+                        raw = raw.split('```')[1]
+                        if raw.startswith('json'):
+                            raw = raw[4:]
+                        raw = raw.strip()
+                    parsed = _json.loads(raw)
+                    extracted_road = parsed.get("road", text)
+                    extracted_type = parsed.get("type", "protest").lower()
+                except (_json.JSONDecodeError, IndexError, KeyError):
+                    # Fallback: parse key:value tokens
+                    for token in raw.split():
+                        if token.startswith("ROAD:"):
+                            extracted_road = token[5:]
+                        elif token.startswith("TYPE:"):
+                            extracted_type = token[5:].lower()
             except Exception as exc:
                 logger.warning("Gemini call failed (%s). Using fuzzy fallback.", exc)
 
         edge, confidence, matched_road = map_disruption_to_edge(
-            extracted_road, confidence_threshold=65
+            extracted_road, confidence_threshold=70
         )
+        if not edge:
+            import re
+            nh_match = re.search(r'NH\s?\d+[A-Z]?', text, re.IGNORECASE)
+            if nh_match:
+                extracted_road = nh_match.group(0).replace(" ", "").upper()
+                edge, confidence, matched_road = map_disruption_to_edge(
+                    extracted_road, confidence_threshold=60
+                )
+        if not edge:
+            city_to_road = {
+                "KRISHNAGIRI": "NH48",
+                "BENGALURU": "NH48",
+                "BANGALORE": "NH48",
+                "CHENNAI": "NH48",
+                "HYDERABAD": "NH65",
+                "VIJAYAWADA": "NH16",
+                "VIZAG": "NH16",
+                "VISAKHAPATNAM": "NH16",
+                "COIMBATORE": "NH544",
+                "COCHIN": "NH544",
+                "KOCHI": "NH544",
+                "MUMBAI": "NH48",
+                "PUNE": "NH48",
+            }
+            upper_text = text.upper()
+            for keyword, road in city_to_road.items():
+                if keyword in upper_text:
+                    extracted_road = road
+                    edge, confidence, matched_road = map_disruption_to_edge(
+                        road, confidence_threshold=60
+                    )
+                    confidence = max(confidence, 68)
+                    break
+        if not edge:
+            matched_road = extracted_road
+            confidence = min(confidence or 0, 45)
         r_score = self._WEATHER_RULES.get(extracted_type, 0.5)
 
         if edge:
@@ -560,7 +621,13 @@ class RiskAgent:
             extra={"matched_road": matched_road, "confidence": confidence}
         )
         self._log.append(entry)
-        return dict(self._edge_risks)
+        result = dict(self._edge_risks)
+        # Attach extracted metadata for callers
+        result["_extracted_road"] = matched_road or extracted_road
+        result["_extracted_type"] = extracted_type
+        result["_extracted_confidence"] = confidence
+        result["_gemini_raw"] = gemini_raw
+        return result
 
     # ------------------------------------------------------------------
     def get_edge_risks(self) -> dict:

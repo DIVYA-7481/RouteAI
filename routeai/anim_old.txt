@@ -1,0 +1,17 @@
+function startTruckAnimation(truck, markerObj) {
+  const pts = flattenCoords(truck.coords);
+  if (pts.length < 2) return null;
+  let step = 0;
+  const total = pts.length - 1;
+  const iv = setInterval(() => {
+    const seg = step % total;
+    const p1 = pts[seg], p2 = pts[seg+1];
+    const bearing = calcBearing(p1, p2);
+    const pos = interpolate(p1, p2, 0.5);
+    markerObj.setLatLng(pos);
+    markerObj.setIcon(mkTruckIcon(truck.color, bearing));
+    step++;
+    if (step >= total * 2) step = 0;
+  }, 2200);
+  return iv;
+}

@@ -22,6 +22,11 @@ from datetime import datetime, timedelta
 from fuzzywuzzy import process, fuzz as _fuzz
 import networkx as nx
 
+# ── Constants ────────────────────────────────────────────────────────────────
+CO2_KG_PER_KM    = 0.536  # diesel truck base emission factor
+COST_TO_KM_RATIO = 0.8    # conversion factor from cost units to km
+DEFAULT_CAPACITY_KG = 800  # fallback truck capacity
+
 # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 # SECTION 1 â€” NODE DEFINITIONS
 # Each node: id â†’ {name, lat, lon, type, city}
@@ -284,7 +289,7 @@ SHIPMENTS = [
     ], 1)
 ]
 
-TRUCKS = [{"id": f"T{i}", "capacity_kg": 800} for i in range(1, 9)]
+TRUCKS = [{"id": f"T{i}", "capacity_kg": DEFAULT_CAPACITY_KG} for i in range(1, 9)]
 
 # =============================================================================
 # SECTION 5 — GRAPH BUILDER
@@ -517,7 +522,7 @@ def time_window_edge_filter(G: nx.DiGraph, current_time: datetime) -> nx.DiGraph
 # =============================================================================
 
 def solve_vrp(G, shipments, trucks, current_time: datetime = None,
-              capacity_kg: int = 800, highway_only_intercity: bool = True):
+              capacity_kg: int = DEFAULT_CAPACITY_KG, highway_only_intercity: bool = True):
     """
     Capacity-constrained greedy insertion VRP heuristic.
 
@@ -632,9 +637,9 @@ def solve_vrp(G, shipments, trucks, current_time: datetime = None,
             city = NODES.get(nid, {}).get("city", "Unknown")
             routes[best_truck]["cities_visited"].add(city)
 
-        # CO2 estimate: 0.536 kg CO2/km, approx km from cost units
-        dist_km = best_cost * 0.8
-        routes[best_truck]["co2_kg"] += round(dist_km * 0.536, 1)
+        # CO2 estimate using named constants
+        dist_km = best_cost * COST_TO_KM_RATIO
+        routes[best_truck]["co2_kg"] += round(dist_km * CO2_KG_PER_KM, 1)
 
     # Serialise city sets to lists
     for r in routes.values():
@@ -688,19 +693,26 @@ def get_normal_state():
     return G, routes
 
 
-def get_disrupted_state():
+def get_disrupted_state(blocked_edges=None):
     """
-    Build graph and solve VRP with NH44 (BEN?HYD) blocked (risk=0.9).
+    Build graph and solve VRP with specified edges blocked (risk=0.9).
+    When no blocked_edges given, defaults to NH44 edges.
 
     Complexity — CD343AI Unit IV:
       Same as get_normal_state() — O(S*T*(V+E)logV)
     """
-    risk_overrides = {
-        ("W7",     "W3"):      0.9,
-        ("W3",     "W7"):      0.9,
-        ("BEN_H7", "HYD_H2"): 0.9,
-        ("HYD_H2", "BEN_H7"): 0.9,
-    }
+    if blocked_edges:
+        risk_overrides = {}
+        for u, v in blocked_edges:
+            risk_overrides[(u, v)] = 0.9
+            risk_overrides[(v, u)] = 0.9
+    else:
+        risk_overrides = {
+            ("W7",     "W3"):      0.9,
+            ("W3",     "W7"):      0.9,
+            ("BEN_H7", "HYD_H2"): 0.9,
+            ("HYD_H2", "BEN_H7"): 0.9,
+        }
     G      = build_graph(risk_overrides)
     routes = solve_vrp(G, SHIPMENTS, TRUCKS)
     return G, routes

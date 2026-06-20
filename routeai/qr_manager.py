@@ -23,7 +23,7 @@ import re
 import json
 import time as _time
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import qrcode
@@ -35,10 +35,11 @@ from reportlab.lib.units import mm
 from reportlab.lib import colors as rl_colors
 from reportlab.platypus import (
     SimpleDocTemplate, Table, TableStyle, Paragraph,
-    Spacer, Image as RLImage,
+    Spacer, Image as RLImage, PageBreak,
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib import colors as rl_table_colors
 
 try:
     import firebase_admin
@@ -48,6 +49,15 @@ except ImportError:
     _FIREBASE_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HELPERS
+# ─────────────────────────────────────────────────────────────────────────────
+
+def now_ts() -> str:
+    """Return current IST time as YYYY-MM-DD HH:MM:SS (UTC+5:30)."""
+    return datetime.now(timezone(timedelta(hours=5, minutes=30))).strftime('%Y-%m-%d %H:%M:%S')
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # CONSTANTS
@@ -87,12 +97,7 @@ _db: Optional[object] = None          # Firestore client singleton
 def _get_db():
     """
     Lazily initialise and return the Firestore client.
-    Falls back to an in-memory stub when Firebase is unavailable
-    (local dev without service-account credentials).
-
-    Complexity — CD343AI Unit I — Singleton / Lazy Init:
-      Time:  O(1) after first call
-      Space: O(1)
+    Reads FIREBASE_CREDENTIALS_JSON env var only — no file fallback.
     """
     global _db
     if _db is not None:
@@ -105,16 +110,17 @@ def _get_db():
 
     if not firebase_admin._apps:
         try:
-            cred = credentials.ApplicationDefault()
+            import os as _os, json as _json
+            cred_json = _os.environ.get('FIREBASE_CREDENTIALS_JSON')
+            if cred_json:
+                cred = credentials.Certificate(_json.loads(cred_json))
+            else:
+                raise FileNotFoundError('No Firebase credentials — set FIREBASE_CREDENTIALS_JSON env var')
             firebase_admin.initialize_app(cred)
-        except Exception:
-            try:
-                cred = credentials.Certificate("serviceAccountKey.json")
-                firebase_admin.initialize_app(cred)
-            except Exception as exc:
-                logger.warning("Firebase init failed (%s). Using in-memory stub.", exc)
-                _db = _InMemoryStore()
-                return _db
+        except Exception as exc:
+            logger.warning("Firebase init failed (%s). Using in-memory stub.", exc)
+            _db = _InMemoryStore()
+            return _db
 
     _db = firestore.client()
     return _db
@@ -372,7 +378,7 @@ def generate_group_qr_codes(
     db          = _get_db()
     images      = []
     qr_strings  = []
-    now_iso     = datetime.now(timezone.utc).isoformat()
+    now_iso  = now_ts()
     group_id    = f"G{group_number}"
 
     for pkg_num in range(1, total_packages + 1):
@@ -424,6 +430,145 @@ def generate_group_qr_codes(
     logger.info("Generated %d QR codes for group %s (%s→%s).",
                 total_packages, group_id, origin, destination)
     return images, metadata
+
+
+def generate_load_pdf(
+    shipments: list[dict],
+    trucks: list[dict],
+    metadata: dict,
+) -> bytes:
+    """
+    Generate a load plan PDF using reportlab (no wkhtmltopdf).
+
+    Layout:
+      - Header: company name, date, document title
+      - Shipment table: ID, Origin, Destination, Weight, Priority, Assigned Truck
+      - Per-truck route section with waypoints
+      - Footer with generation timestamp
+
+    Args:
+        shipments: list of shipment dicts with keys: id, origin, destination,
+                   weight_kg, priority, assigned_truck
+        trucks:    list of truck dicts with keys: id, route, distance_km, co2_kg
+        metadata:  dict with keys: title, generated_at, total_shipments, total_weight
+
+    Returns:
+        bytes — raw PDF content
+
+    Complexity — CD343AI Unit II — Table Composition:
+      Time:  O(S + T) where S = shipments, T = trucks
+      Space: O(1) from reportlab flowables
+    """
+    from datetime import datetime, timezone, timedelta
+    PAGE_W, PAGE_H = A4
+    MARGIN = 15 * mm
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "LoadPlanTitle", parent=styles["Heading1"],
+        alignment=TA_CENTER, textColor=rl_colors.HexColor("#1A1A2E"),
+        spaceAfter=4, fontSize=18,
+    )
+    subtitle_style = ParagraphStyle(
+        "LoadPlanSub", parent=styles["Normal"],
+        alignment=TA_CENTER, fontSize=10,
+        textColor=rl_colors.HexColor("#666666"), spaceAfter=12,
+    )
+    section_style = ParagraphStyle(
+        "SectionTitle", parent=styles["Heading2"],
+        textColor=rl_colors.HexColor("#534AB7"), spaceAfter=6, spaceBefore=14,
+    )
+    cell_style = ParagraphStyle(
+        "TableCell", parent=styles["Normal"], fontSize=8, leading=10,
+    )
+    footer_style = ParagraphStyle(
+        "Footer", parent=styles["Normal"], alignment=TA_CENTER,
+        fontSize=7, textColor=rl_colors.HexColor("#999999"), spaceBefore=10,
+    )
+
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=MARGIN,
+        title=metadata.get("title", "Load Plan"),
+        author="ResilientChain AI",
+    )
+    story = []
+
+    # ── Header ──
+    story.append(Paragraph("ResilientChain AI", title_style))
+    story.append(Paragraph(
+        f"Load Plan &mdash; {metadata.get('title', 'Truck Assignment')}",
+        subtitle_style,
+    ))
+    generated = metadata.get("generated_at", now_ts())
+    story.append(Paragraph(
+        f"Generated: {generated[:19]} &nbsp;|&nbsp; "
+        f"Shipments: {metadata.get('total_shipments', 0)} &nbsp;|&nbsp; "
+        f"Total Weight: {metadata.get('total_weight', 0)} kg",
+        subtitle_style,
+    ))
+    story.append(Spacer(1, 6 * mm))
+
+    # ── Shipment Table ──
+    story.append(Paragraph("Assigned Shipments", section_style))
+    header = ["ID", "Origin", "Destination", "Weight (kg)", "Priority", "Truck"]
+    table_data = [header]
+    for s in shipments:
+        table_data.append([
+            Paragraph(str(s.get("id", "")), cell_style),
+            Paragraph(str(s.get("origin", "")), cell_style),
+            Paragraph(str(s.get("destination", "")), cell_style),
+            Paragraph(str(s.get("weight_kg", 0)), cell_style),
+            Paragraph(str(s.get("priority", "Normal")), cell_style),
+            Paragraph(str(s.get("assigned_truck", "")), cell_style),
+        ])
+    col_widths = [50, 55, 55, 55, 50, 55]
+    tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), rl_table_colors.HexColor("#534AB7")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), rl_table_colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, rl_table_colors.HexColor("#CCCCCC")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_table_colors.white, rl_table_colors.HexColor("#F5F5FF")]),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 8 * mm))
+
+    # ── Per-Truck Route Sections ──
+    for t in trucks:
+        tid = t.get("id", "?")
+        route = t.get("route", [])
+        dist = t.get("distance_km", 0)
+        co2 = t.get("co2_kg", 0)
+
+        story.append(Paragraph(
+            f"Truck {tid} &mdash; Route: {' → '.join(route)}",
+            section_style,
+        ))
+        waypoint_str = " → ".join(route) if route else "No route assigned"
+        story.append(Paragraph(
+            f"<b>Waypoints:</b> {waypoint_str}<br/>"
+            f"<b>Distance:</b> {dist} km &nbsp;|&nbsp; "
+            f"<b>CO₂:</b> {co2} kg",
+            cell_style,
+        ))
+        story.append(Spacer(1, 4 * mm))
+
+    # ── Footer ──
+    story.append(Spacer(1, 10 * mm))
+    story.append(Paragraph(
+        f"ResilientChain AI &mdash; Generated {generated[:19]} IST &mdash; "
+        "This is a computer-generated document.",
+        footer_style,
+    ))
+
+    doc.build(story)
+    pdf_bytes = buf.getvalue()
+    buf.close()
+    return pdf_bytes
 
 
 def export_to_pdf(
@@ -610,7 +755,7 @@ def register_scan(
       Time:  O(L) parse + O(1) Firestore get/set (network latency aside)
       Space: O(H) where H = length of scan_history
     """
-    ts      = timestamp or datetime.now(timezone.utc).isoformat()
+    ts = timestamp or now_ts()
     meta    = _parse_qr_string(qr_string)   # raises ValueError on bad string
     db      = _get_db()
 
@@ -761,7 +906,7 @@ def get_inventory_status(hub_id: str) -> dict:
         "hub_id":       hub_id,
         "total":        len(packages),
         "packages":     packages,
-        "retrieved_at": datetime.now(timezone.utc).isoformat(),
+        "retrieved_at": now_ts(),
     }
 
 
