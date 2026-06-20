@@ -6266,12 +6266,14 @@ function loSelectTruck(i) {
     el.style.borderColor = j===i ? '#7c74e8' : '#2d3148';
     el.style.background  = j===i ? 'rgba(124,116,232,.08)' : '#161b26';
   });
-  var items = loShipments.length ? loShipments : LO_TRUCKS[i].shipments;
-  loRenderViz(items, true);
-  loUpdateWeightBar(items);
-  loUpdateDPTable(items);
-  document.getElementById('lo-algo-result').style.display = 'none';
-  document.getElementById('lo-pkg-detail').style.display = 'none';
+  renderLoShipmentList();
+  var items = LO_TRUCKS[i].shipments;
+  if (items.length) {
+    loRunOptimizer();
+  } else {
+    resetLoViz();
+    loUpdateWeightBar([]);
+  }
 }
 
 /* ─── 0/1 Knapsack DP ─── */
@@ -6303,12 +6305,12 @@ function loGreedy(items, cap) {
   return { selected, totalWeight:w, totalPri: selected.reduce((s,x)=>s+x.pri,0) };
 }
 
-/* ─── Fix 2+3: Shipment accumulator with multi-package knapsack ─── */
-let loShipments = [];
-// Restore from localStorage
-try { var _saved = localStorage.getItem('routeai_loshipments'); if (_saved) { var _p = JSON.parse(_saved); if (_p.length) loShipments = _p; } } catch(e){}
+/* ─── Per-truck shipment management ─── */
+function loGetSelectedTruck() { return LO_TRUCKS[loSelectedTruck]; }
+function loGetTruckShipments() { return loGetSelectedTruck().shipments; }
 
 function loAddShipment() {
+  const truck = loGetSelectedTruck();
   const weight   = parseFloat(document.getElementById('lo-weight').value);
   const volume   = parseFloat(document.getElementById('lo-volume').value);
   const type     = document.getElementById('lo-type').value || 'STANDARD';
@@ -6317,60 +6319,67 @@ function loAddShipment() {
   if (!weight || weight <= 0) { showToaster('Enter a valid weight', 'amber'); return; }
   if (!volume || volume <= 0) { showToaster('Enter a valid volume', 'amber'); return; }
 
-  loShipments.push({
-    id:        'PK' + String(loShipments.length + 1) + 'G001BENMUM',
-    weight:    weight,
-    weight_kg: weight,
-    vol:       volume,
-    volume_m3: volume,
-    type:      type,
-    pri:       priority,
-    priority:  priority,
+  const curWeight = truck.shipments.reduce(function(s,p){ return s + p.weight; }, 0);
+  const curVol    = truck.shipments.reduce(function(s,p){ return s + p.vol; }, 0);
+  const capKg     = truck.capacity_kg || 800;
+  const capVol    = 12.0;
+
+  if (curWeight + weight > capKg) {
+    showToaster('Cannot add: ' + weight + 'kg would exceed ' + truck.id + ' capacity (' + curWeight + '+' + weight + ' = ' + (curWeight+weight) + 'kg > ' + capKg + 'kg)', 'red');
+    return;
+  }
+  if (curVol + volume > capVol) {
+    showToaster('Cannot add: volume would exceed ' + truck.id + ' container limit', 'red');
+    return;
+  }
+
+  var pkId = 'PK' + String(Date.now()).slice(-6) + truck.id + 'G00' + (truck.shipments.length + 1);
+  truck.shipments.push({
+    id: pkId, weight: weight, weight_kg: weight,
+    vol: volume, volume_m3: volume, type: type,
+    pri: priority, priority: priority,
   });
 
   document.getElementById('lo-weight').value = '';
   document.getElementById('lo-volume').value = '';
   renderLoShipmentList();
-  localStorage.setItem('routeai_loshipments', JSON.stringify(loShipments));
   loBuildTruckGrid();
-  if (loShipments.length >= 2) loRunOptimizer();
+  loRunOptimizer();
+  showToaster(type + ' package ' + pkId + ' added to ' + truck.id + ' (' + (curWeight+weight) + 'kg/' + capKg + 'kg)', 'green');
 }
 
 function renderLoShipmentList() {
   const container = document.getElementById('lo-item-list');
   if (!container) return;
-  container.innerHTML = loShipments.map(function(s, i) {
-    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#0d1117;border-radius:4px;margin-bottom:3px;font-size:11px">' +
-      '<span style="color:#7c74e8;font-family:monospace;min-width:30px">' + s.id + '</span>' +
+  var items = loGetTruckShipments();
+  container.innerHTML = items.map(function(s, i) {
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 8px;background:#0d1117;border-radius:4px;margin-bottom:3px;font-size:11px;border-left:3px solid ' + (s.type === 'FRAGILE' ? '#f59e0b' : '#7c74e8') + '">' +
+      '<span style="color:#7c74e8;font-family:monospace;min-width:80px">' + s.id + '</span>' +
       '<span style="color:#94a3b8">' + s.weight_kg + 'kg</span>' +
       '<span style="color:#64748b">' + s.volume_m3 + 'm³</span>' +
       '<span style="color:' + (s.type === 'FRAGILE' ? '#f59e0b' : '#64748b') + '">' + s.type + '</span>' +
       '<span style="color:#7c74e8">' + '★'.repeat(s.priority) + '</span>' +
-      '<button onclick="loRemoveItem(' + i + ')" style="margin-left:auto;background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;line-height:1">×</button>' +
+      '<button onclick="loRemoveFromTruck(' + i + ')" title="Remove from ' + loGetSelectedTruck().id + '" style="margin-left:auto;background:none;border:none;color:#ef4444;cursor:pointer;font-size:14px;line-height:1;opacity:.7" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.7">×</button>' +
     '</div>';
   }).join('');
-  var cnt = loShipments.length;
+  var cnt = items.length;
+  var totalW = items.reduce(function(s,p){ return s + p.weight; }, 0);
   var el = document.getElementById('lo-item-count');
-  if (el) el.textContent = cnt + ' item' + (cnt !== 1 ? 's' : '') + ' queued';
+  if (el) el.textContent = cnt + ' item' + (cnt !== 1 ? 's' : '') + ' on ' + loGetSelectedTruck().id + ' (' + totalW + 'kg/' + (loGetSelectedTruck().capacity_kg||800) + 'kg)';
 }
 
-function loRemoveItem(idx) {
-  loShipments.splice(idx, 1);
-  // Re-number only the PK prefix, preserve G/origin/dest suffix so IDs stay in PK format
-  loShipments.forEach(function(s, i) {
-    var m = (s.id || '').match(/^PK\d+(G.*)$/);
-    s.id = 'PK' + String(i + 1) + (m ? m[1] : 'G001BENMUM');
-  });
+function loRemoveFromTruck(idx) {
+  var truck = loGetSelectedTruck();
+  var removed = truck.shipments.splice(idx, 1)[0];
   renderLoShipmentList();
-  localStorage.setItem('routeai_loshipments', JSON.stringify(loShipments));
   loBuildTruckGrid();
-  if (loShipments.length >= 2) loRunOptimizer();
-  else if (loShipments.length === 0) resetLoViz();
+  if (truck.shipments.length >= 1) loRunOptimizer();
+  else resetLoViz();
+  showToaster('Removed ' + (removed ? removed.id : 'package') + ' from ' + truck.id, 'amber');
 }
 
 function loClearAll() {
-  loShipments = [];
-  localStorage.removeItem('routeai_loshipments');
+  loGetSelectedTruck().shipments = [];
   renderLoShipmentList();
   loBuildTruckGrid();
   resetLoViz();
@@ -6396,18 +6405,18 @@ function resetLoViz() {
   document.getElementById('lo-topple-txt').setAttribute('opacity','0');
 }
 
-/* ─── Run optimizer on accumulated loShipments ─── */
+/* ─── Run optimizer on selected truck's shipments ─── */
 async function loRunOptimizer() {
-  if (!loShipments.length) { showToaster('Add at least 1 shipment first', 'amber'); return; }
-  var truckIdx = typeof loSelectedTruck === 'number' ? loSelectedTruck : 0;
-  var truckObj = LO_TRUCKS && LO_TRUCKS[truckIdx] ? LO_TRUCKS[truckIdx] : null;
-  var truckId = truckObj ? truckObj.id : 'T1';
-  var capacityKg = truckObj && truckObj.capacity_kg ? truckObj.capacity_kg : 800;
+  var truck = loGetSelectedTruck();
+  var items = truck.shipments;
+  if (!items.length) { resetLoViz(); return; }
+  var truckId = truck.id;
+  var capacityKg = truck.capacity_kg || 800;
   try {
     var res = await fetch('/api/load/optimize', {
       method: 'POST',
       headers: {'Authorization': 'Bearer ' + getToken(), 'Content-Type': 'application/json'},
-      body: JSON.stringify({ truck_id: truckId, capacity_kg: capacityKg, shipments: loShipments })
+      body: JSON.stringify({ truck_id: truckId, capacity_kg: capacityKg, shipments: items })
     });
     if (!res.ok) {
       var errData;
@@ -6441,7 +6450,7 @@ function updateLoKnapsackComparison(dp, greedy) {
   if (impPct > 0) {
     impEl.textContent = 'DP achieves ' + impPct + '% better priority score';
     impEl.style.color = '#4ade80';
-  } else if (loShipments.length >= 2) {
+  } else if (loGetTruckShipments().length >= 2) {
     impEl.textContent = 'DP and Greedy tied — use different priorities to see improvement';
     impEl.style.color = '#f59e0b';
   } else {
@@ -6452,7 +6461,8 @@ function updateLoKnapsackComparison(dp, greedy) {
 
 function updateLoWeightBar(usedKg, capacityKg, utilPct) {
   utilPct = +utilPct || 0;
-  const fragW = loShipments.filter(i=>i.type==='FRAGILE').reduce((s,i)=>s+i.weight_kg,0);
+  var truckItems = loGetTruckShipments();
+  const fragW = truckItems.filter(i=>i.type==='FRAGILE').reduce((s,i)=>s+i.weight_kg,0);
   const fragPct = (fragW / capacityKg) * 100;
   const barColor = utilPct > 90 ? '#ef4444' : utilPct > 70 ? '#f59e0b' : '#7c74e8';
   document.getElementById('lo-bar-used').style.width = utilPct + '%';
@@ -6482,14 +6492,57 @@ function updateLoBinPackingViz(items, rects, comXPct, comYPct, comSafe) {
     r.setAttribute('rx','3'); r.setAttribute('fill', p.color);
     r.setAttribute('opacity','0.88');
     g.appendChild(r);
-    if (p.item_id) {
+    if (p.type === 'FRAGILE') {
+      const fR = document.createElementNS('http://www.w3.org/2000/svg','rect');
+      fR.setAttribute('x',p.x); fR.setAttribute('y',p.y);
+      fR.setAttribute('width',p.w); fR.setAttribute('height',p.h);
+      fR.setAttribute('rx','3'); fR.setAttribute('fill','url(#fragile-pat)');
+      fR.setAttribute('opacity','0.5');
+      g.appendChild(fR);
+    }
+    const bR = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    bR.setAttribute('x',p.x); bR.setAttribute('y',p.y);
+    bR.setAttribute('width',p.w); bR.setAttribute('height',p.h);
+    bR.setAttribute('rx','3'); bR.setAttribute('fill','none');
+    bR.setAttribute('stroke',p.color); bR.setAttribute('stroke-width','1.5');
+    bR.setAttribute('opacity','0.6');
+    g.appendChild(bR);
+    if (p.item_id && p.w > 28) {
       const t = document.createElementNS('http://www.w3.org/2000/svg','text');
-      t.setAttribute('x', p.x + p.w/2); t.setAttribute('y', p.y + p.h/2);
+      t.setAttribute('x', p.x + p.w/2); t.setAttribute('y', p.y + p.h/2 - 4);
       t.setAttribute('text-anchor','middle'); t.setAttribute('fill','#fff');
       t.setAttribute('font-size','9'); t.setAttribute('font-weight','700');
+      t.setAttribute('font-family','Inter,system-ui');
       t.textContent = p.item_id;
       g.appendChild(t);
+      const t2 = document.createElementNS('http://www.w3.org/2000/svg','text');
+      t2.setAttribute('x', p.x + p.w/2); t2.setAttribute('y', p.y + p.h/2 + 8);
+      t2.setAttribute('text-anchor','middle'); t2.setAttribute('fill','rgba(255,255,255,.7)');
+      t2.setAttribute('font-size','8'); t2.setAttribute('font-family','Inter,system-ui');
+      t2.textContent = (p.weight_kg || 0) + 'kg';
+      g.appendChild(t2);
     }
+    g.addEventListener('mouseenter', ev => {
+      r.setAttribute('stroke','#fff'); r.setAttribute('stroke-width','2');
+      const tooltip = document.getElementById('lo-tooltip');
+      if (tooltip) {
+        const svg = document.getElementById('lo-svg');
+        const svgRect = svg.getBoundingClientRect();
+        const scaleX = svgRect.width / 700;
+        tooltip.style.left = (p.x * scaleX + p.w*scaleX/2 - 80) + 'px';
+        tooltip.style.top  = (p.y * (svgRect.height/280) - 80) + 'px';
+        tooltip.style.display = 'block';
+        tooltip.innerHTML =
+          '<b style="color:#f1f5f9">' + (p.item_id||'') + '</b><br>' +
+          'Weight: <b>' + (p.weight_kg||0) + 'kg</b><br>' +
+          'Type: <b style="color:' + (p.type==='FRAGILE'?'#f59e0b':'#10b981') + '">' + (p.type||'STANDARD') + '</b>';
+      }
+    });
+    g.addEventListener('mouseleave', () => {
+      r.removeAttribute('stroke');
+      var tt = document.getElementById('lo-tooltip');
+      if (tt) tt.style.display = 'none';
+    });
     grp.appendChild(g);
   });
   document.getElementById('lo-com-vline').setAttribute('opacity','0.7');
@@ -6515,7 +6568,7 @@ function updateLoAlgoStats(data) {
   el.innerHTML =
     '<div style="color:#334155">// ' + (data.algorithm || '0/1 Knapsack DP') + '</div>' +
     '<div style="color:#334155">// ' + (data.complexity || 'O(n\u00b7W)') + '</div>' +
-    '<div style="color:#10b981">Result: ' + (data.dp_result?.items_count || 0) + '/' + (data.shipments?.length || loShipments.length) + ' shipments selected</div>' +
+    '<div style="color:#10b981">Result: ' + (data.dp_result?.items_count || 0) + '/' + (data.selected_items?.length || loGetTruckShipments().length) + ' shipments selected</div>' +
     '<div style="color:#10b981">Weight: ' + (data.selected_weight_kg || 0) + 'kg / ' + (data.capacity_kg || CAPACITY_KG || 800) + 'kg</div>' +
     '<div style="color:#10b981">Score: ' + (data.dp_result?.priority_score || 0) + ' pts vs Greedy ' + (data.greedy_result?.priority_score || 0) + ' pts</div>' +
     '<div style="color:#f1f5f9">Improvement: <span style="color:#a5b4fc">' + (data.improvement_pct || 0) + '%</span></div>';
@@ -6570,11 +6623,13 @@ const SVG_X0 = 8, SVG_Y0 = 12;
 const FLOOR_Y = SVG_Y0 + SVG_H; // = 258
 
 function loFFD(items) {
-  // Sort descending by volume
-  const sorted = [...items].sort((a,b) => b.vol - a.vol);
-  const MAX_W = SVG_W - 4; // usable width in SVG units
-  const ROW_H = 56;        // height of each row in SVG units
+  const MAX_W = SVG_W - 4;
+  const ROW_H = 56;
   const pkgW  = vol => Math.max(30, Math.min(Math.round((vol / 5.0) * MAX_W), MAX_W));
+
+  var heavy = items.filter(i => i.type !== 'FRAGILE').sort((a,b) => b.weight - a.weight);
+  var fragile = items.filter(i => i.type === 'FRAGILE').sort((a,b) => b.weight - a.weight);
+  var sorted = heavy.concat(fragile);
 
   const placements = [];
   let rowX = 2, rowIdx = 0;
@@ -6583,7 +6638,7 @@ function loFFD(items) {
     const w = pkgW(item.vol);
     if (rowX + w > MAX_W && rowX > 2) { rowIdx++; rowX = 2; }
     const x = SVG_X0 + rowX;
-    const hItem = item.type === 'FRAGILE' ? ROW_H * 0.7 : ROW_H;
+    const hItem = item.type === 'FRAGILE' ? ROW_H * 0.65 : ROW_H;
     const y = FLOOR_Y - (rowIdx+1)*ROW_H + (ROW_H - hItem);
     placements.push({ item, x, y, w, h: hItem, rowIdx });
     rowX += w + 2;
@@ -6829,16 +6884,24 @@ function loAnimateFFD() {
   });
 }
 
-/* ─── Download PDF stub ─── */
+/* ─── Download per-truck PDF ─── */
 function loDownloadPDF() {
-  showToaster('PDF download requires Flask server — POST /api/load/pdf', 'purple');
+  var truck = loGetSelectedTruck();
+  if (!truck.shipments.length) { showToaster('No packages on ' + truck.id + ' to export', 'amber'); return; }
+  showToaster('Generating load plan PDF for ' + truck.id + '...', 'purple');
   fetch('/api/load/pdf', {method:'POST',
     headers:{'Authorization':'Bearer '+getToken(),'Content-Type':'application/json'},
-    body: JSON.stringify({ truck: LO_TRUCKS[loSelectedTruck].id })
-  }).then(r => r.ok ? r.blob() : null)
-    .then(b => { if(b) { const a=document.createElement('a'); a.href=URL.createObjectURL(b);
-      a.download='load_plan.pdf'; a.click(); }
-    }).catch(()=>{});
+    body: JSON.stringify({
+      truck_id: truck.id,
+      truck_route: truck.route,
+      truck_color: truck.color,
+      capacity_kg: truck.capacity_kg,
+      shipments: truck.shipments
+    })
+  }).then(r => { if (!r.ok) throw new Error(r.status); return r.blob(); })
+    .then(b => { const a=document.createElement('a'); a.href=URL.createObjectURL(b);
+      a.download='LoadPlan_' + truck.id + '_' + new Date().toISOString().slice(0,10) + '.pdf'; a.click(); showToaster(truck.id + ' load plan downloaded', 'green'); })
+    .catch(e => { showToaster('PDF generation failed: ' + e.message, 'red'); });
 }
 
 /* ─── Init load page ─── */
@@ -6846,8 +6909,6 @@ function loInit() {
   try { var _savedTruck = localStorage.getItem('routeai_lotruck'); if (_savedTruck !== null) loSelectedTruck = parseInt(_savedTruck, 10) || 0; } catch(e){}
   loBuildTruckGrid();
   loSelectTruck(loSelectedTruck);
-  renderLoShipmentList();
-  if (loShipments.length >= 2) loRunOptimizer();
 }
 
 /* ────────────────────────────────────────────────

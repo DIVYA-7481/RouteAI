@@ -571,6 +571,257 @@ def generate_load_pdf(
     return pdf_bytes
 
 
+def generate_truck_load_pdf(
+    shipments: list[dict],
+    meta: dict,
+) -> bytes:
+    """
+    Generate a per-truck load plan PDF with 2D container visualization.
+
+    Includes: truck info, container viz with CoM, package table, physics analysis.
+    """
+    from reportlab.graphics.shapes import Drawing, Rect, String, Line, Polygon
+    from reportlab.graphics import renderPDF
+
+    PAGE_W, PAGE_H = A4
+    MARGIN = 15 * mm
+    buf = io.BytesIO()
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        "TruckTitle", parent=styles["Heading1"],
+        alignment=TA_CENTER, textColor=rl_colors.HexColor("#1A1A2E"),
+        spaceAfter=2, fontSize=16,
+    )
+    subtitle_style = ParagraphStyle(
+        "TruckSub", parent=styles["Normal"],
+        alignment=TA_CENTER, fontSize=9,
+        textColor=rl_colors.HexColor("#666666"), spaceAfter=8,
+    )
+    section_style = ParagraphStyle(
+        "Section", parent=styles["Heading2"],
+        textColor=rl_colors.HexColor("#534AB7"), spaceAfter=4, spaceBefore=10, fontSize=12,
+    )
+    cell_style = ParagraphStyle(
+        "Cell", parent=styles["Normal"], fontSize=7.5, leading=9,
+    )
+    small_style = ParagraphStyle(
+        "Small", parent=styles["Normal"], fontSize=7, leading=9,
+        textColor=rl_colors.HexColor("#555555"),
+    )
+    footer_style = ParagraphStyle(
+        "Footer", parent=styles["Normal"], alignment=TA_CENTER,
+        fontSize=7, textColor=rl_colors.HexColor("#999999"), spaceBefore=8,
+    )
+
+    doc = SimpleDocTemplate(
+        buf, pagesize=A4,
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=MARGIN,
+        title=meta.get("title", "Truck Load Plan"),
+        author="ResilientChain AI",
+    )
+    story = []
+    truck_color = meta.get("truck_color", "#534AB7")
+
+    # ── Header ──
+    story.append(Paragraph("ResilientChain AI", title_style))
+    story.append(Paragraph(
+        f"Truck {meta.get('truck_id', '?')} &mdash; {meta.get('truck_route', 'Load Plan')}",
+        subtitle_style,
+    ))
+    ts = meta.get("generated_at", "")
+    cap = meta.get("capacity_kg", 800)
+    tw = meta.get("total_weight", 0)
+    util = meta.get("utilization_pct", 0)
+    story.append(Paragraph(
+        f"Generated: {ts[:19]} &nbsp;|&nbsp; "
+        f"Capacity: {cap} kg &nbsp;|&nbsp; "
+        f"Load: {tw} kg ({util}%) &nbsp;|&nbsp; "
+        f"Packages: {meta.get('total_shipments', 0)} &nbsp;|&nbsp; "
+        f"Fragile: {meta.get('fragile_count', 0)}",
+        subtitle_style,
+    ))
+    story.append(Spacer(1, 4 * mm))
+
+    # ── 2D Container Visualization ──
+    story.append(Paragraph("Container Load Visualization", section_style))
+
+    viz_w, viz_h = 520, 180
+    d = Drawing(viz_w, viz_h)
+
+    # Container outline
+    d.add(Rect(2, 2, viz_w - 4, viz_h - 4, fillColor=rl_colors.HexColor("#0d1117"),
+               strokeColor=rl_colors.HexColor("#334155"), strokeWidth=1.5))
+
+    # Fragile zone (top 30%)
+    fragile_zone_y = viz_h * 0.7
+    d.add(Rect(4, fragile_zone_y, viz_w - 8, viz_h - fragile_zone_y - 4,
+               fillColor=rl_colors.HexColor("#f59e0b10"), strokeColor=rl_colors.HexColor("#f59e0b40"),
+               strokeWidth=0.5, strokeDashArray=[4, 2]))
+    d.add(String(viz_w - 60, fragile_zone_y + 4, "FRAGILE ZONE",
+                 fillColor=rl_colors.HexColor("#f59e0b80"), fontSize=6, fontName="Helvetica-Bold"))
+
+    # Front/rear labels
+    d.add(String(8, 4, "FRONT", fillColor=rl_colors.HexColor("#475569"), fontSize=6, fontName="Helvetica-Bold"))
+    d.add(String(viz_w - 40, 4, "REAR", fillColor=rl_colors.HexColor("#475569"), fontSize=6, fontName="Helvetica-Bold"))
+
+    # Floor line
+    d.add(Line(4, 18, viz_w - 4, 18, strokeColor=rl_colors.HexColor("#334155"), strokeWidth=1))
+
+    # Sort: heavy items bottom, fragile on top
+    std_items = sorted([s for s in shipments if s.get("type") != "FRAGILE"],
+                       key=lambda s: s.get("weight_kg", s.get("weight", 0)), reverse=True)
+    frag_items = sorted([s for s in shipments if s.get("type") == "FRAGILE"],
+                        key=lambda s: s.get("weight_kg", s.get("weight", 0)), reverse=True)
+    sorted_items = std_items + frag_items
+
+    COLS_HEX = ["#7c74e8", "#10b981", "#f97316", "#38bdf8", "#f59e0b", "#e879f9", "#84cc16", "#94a3b8"]
+    usable_w = viz_w - 16
+    row_h = 38
+    cur_x, cur_y, max_row_h = 8, 20, 0
+    placements = []
+
+    for idx, s in enumerate(sorted_items):
+        vol = s.get("volume_m3", s.get("vol", 0.5))
+        w = max(30, min(int(vol * 60), int(usable_w * 0.45)))
+        h = row_h - 4 if s.get("type") == "FRAGILE" else row_h
+        if cur_x + w > usable_w + 8:
+            cur_x = 8
+            cur_y += max_row_h + 3
+            max_row_h = 0
+        if cur_y + h > viz_h - 8:
+            cur_y = 20
+        pkg_id = s.get("id", f"S{idx+1}")
+        weight = s.get("weight_kg", s.get("weight", 0))
+        col = rl_colors.HexColor(COLS_HEX[idx % len(COLS_HEX)])
+
+        d.add(Rect(cur_x, cur_y, w, h, fillColor=col, strokeColor=col, strokeWidth=0.5, rx=2))
+        if s.get("type") == "FRAGILE":
+            d.add(Rect(cur_x, cur_y, w, h, fillColor=rl_colors.HexColor("#ffffff20"),
+                       strokeColor=rl_colors.HexColor("#f59e0b"), strokeWidth=1, rx=2, strokeDashArray=[2, 2]))
+        if w > 28:
+            d.add(String(cur_x + w / 2, cur_y + h / 2 + 2, str(pkg_id),
+                         fillColor=rl_colors.white, fontSize=5.5, fontName="Helvetica-Bold",
+                         textAnchor="middle"))
+            d.add(String(cur_x + w / 2, cur_y + h / 2 - 7, f"{weight}kg",
+                         fillColor=rl_colors.HexColor("#ffffffcc"), fontSize=5, textAnchor="middle"))
+
+        placements.append({"x": cur_x, "y": cur_y, "w": w, "h": h, "weight": weight})
+        cur_x += w + 3
+        max_row_h = max(max_row_h, h)
+
+    # Center of Mass
+    if placements:
+        total_w = sum(p["weight"] for p in placements) or 1
+        com_x = sum((p["x"] + p["w"] / 2) * p["weight"] for p in placements) / total_w
+        com_y = sum((p["y"] + p["h"] / 2) * p["weight"] for p in placements) / total_w
+        d.add(Line(com_x, 20, com_x, viz_h - 4, strokeColor=rl_colors.HexColor("#ef444480"),
+                   strokeWidth=0.8, strokeDashArray=[3, 2]))
+        d.add(Line(4, com_y, viz_w - 4, com_y, strokeColor=rl_colors.HexColor("#ef444480"),
+                   strokeWidth=0.8, strokeDashArray=[3, 2]))
+        pts = [com_x, com_y - 5, com_x + 4, com_y, com_x, com_y + 5, com_x - 4, com_y]
+        d.add(Polygon(pts, fillColor=rl_colors.HexColor("#ef4444"), strokeColor=rl_colors.white, strokeWidth=0.5))
+        com_safe = abs(com_x / viz_w - 0.5) < 0.15
+        label = "CoM SAFE" if com_safe else "CoM SHIFTED"
+        lcol = rl_colors.HexColor("#10b981") if com_safe else rl_colors.HexColor("#ef4444")
+        d.add(String(com_x + 7, com_y + 3, label, fillColor=lcol, fontSize=5.5, fontName="Helvetica-Bold"))
+    else:
+        com_safe = True
+
+    story.append(d)
+    story.append(Spacer(1, 3 * mm))
+
+    # ── Utilization bar ──
+    bar_data = [
+        [Paragraph("<b>Utilization</b>", cell_style),
+         Paragraph(f"<b>{util}%</b> ({tw}kg / {cap}kg)", cell_style)],
+        [Paragraph("Status", cell_style),
+         Paragraph(f"<b>{'OPTIMAL' if 60 <= util <= 85 else 'OVERLOADED' if util > 85 else 'UNDERLOADED'}</b>", cell_style)],
+        [Paragraph("CoM Stability", cell_style),
+         Paragraph(f"<b>{'STABLE' if com_safe else 'UNSTABLE - redistribute load'}</b>", cell_style)],
+    ]
+    bar_tbl = Table(bar_data, colWidths=[80, 200])
+    bar_tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (0, -1), rl_colors.HexColor("#f0f0f8")),
+        ("GRID", (0, 0), (-1, -1), 0.5, rl_colors.HexColor("#dddddd")),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    story.append(bar_tbl)
+    story.append(Spacer(1, 4 * mm))
+
+    # ── Package Table ──
+    story.append(Paragraph("Package Details", section_style))
+    header = ["#", "Package ID", "Weight (kg)", "Volume (m³)", "Type", "Priority", "Placement"]
+    table_data = [header]
+    for idx, s in enumerate(sorted_items):
+        pkg_id = s.get("id", f"S{idx+1}")
+        weight = s.get("weight_kg", s.get("weight", 0))
+        vol = s.get("volume_m3", s.get("vol", 0))
+        ptype = s.get("type", "STANDARD")
+        pri = s.get("priority", s.get("pri", 3))
+        row_idx = placements[idx]["y"] if idx < len(placements) else 0
+        layer = "Bottom" if row_idx < viz_h * 0.4 else "Middle" if row_idx < viz_h * 0.7 else "Top"
+        table_data.append([
+            Paragraph(str(idx + 1), cell_style),
+            Paragraph(str(pkg_id), cell_style),
+            Paragraph(str(weight), cell_style),
+            Paragraph(str(round(vol, 2)), cell_style),
+            Paragraph(f"<b>{ptype}</b>", cell_style),
+            Paragraph("★" * pri + "☆" * (5 - pri), cell_style),
+            Paragraph(f"Row {layer}", cell_style),
+        ])
+
+    col_widths = [20, 70, 45, 45, 45, 55, 50]
+    tbl = Table(table_data, colWidths=col_widths, repeatRows=1)
+    tbl.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), rl_colors.HexColor("#534AB7")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), rl_colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 7),
+        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+        ("GRID", (0, 0), (-1, -1), 0.5, rl_colors.HexColor("#CCCCCC")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [rl_colors.white, rl_colors.HexColor("#F5F5FF")]),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+    ]))
+    story.append(tbl)
+    story.append(Spacer(1, 4 * mm))
+
+    # ── Physics Analysis ──
+    story.append(Paragraph("Physics & Placement Analysis", section_style))
+    heavy_items = [s for s in shipments if s.get("type") != "FRAGILE"]
+    fragile_items = [s for s in shipments if s.get("type") == "FRAGILE"]
+    heavy_total = sum(s.get("weight_kg", s.get("weight", 0)) for s in heavy_items)
+    frag_total = sum(s.get("weight_kg", s.get("weight", 0)) for s in fragile_items)
+    physics_points = []
+    physics_points.append(f"Heavy items ({len(heavy_items)} packages, {heavy_total}kg) placed at container bottom for low centre of gravity")
+    if fragile_items:
+        physics_points.append(f"Fragile items ({len(fragile_items)} packages, {frag_total}kg) placed above heavy items to prevent breakage")
+    if com_safe:
+        physics_points.append("Centre of Mass is within safe zone (&plusmn;15% of centre) - minimal topple risk")
+    else:
+        physics_points.append("Centre of Mass is SHIFTED - redistribute heavy items for stability")
+    remaining_cap = cap - tw
+    physics_points.append(f"Remaining capacity: {remaining_cap}kg ({round(remaining_cap / cap * 100, 1)}%) - {' adequate buffer' if remaining_cap > 100 else 'WARNING: low buffer'}")
+    for pt in physics_points:
+        story.append(Paragraph(f"&bull; {pt}", small_style))
+    story.append(Spacer(1, 4 * mm))
+
+    # ── Footer ──
+    story.append(Spacer(1, 6 * mm))
+    story.append(Paragraph(
+        f"ResilientChain AI &mdash; Truck {meta.get('truck_id', '?')} Load Plan &mdash; "
+        f"Generated {ts[:19]} IST &mdash; This is a computer-generated document.",
+        footer_style,
+    ))
+
+    doc.build(story)
+    pdf_bytes = buf.getvalue()
+    buf.close()
+    return pdf_bytes
+
+
 def export_to_pdf(
     qr_images: list[Image.Image],
     metadata: dict,

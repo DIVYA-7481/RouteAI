@@ -1336,12 +1336,19 @@ def load_optimize():
         if isinstance(shipments, str):
             import json; shipments = json.loads(shipments)
 
+        def _w(s):
+            return int(s.get("weight_kg", s.get("weight", 0)))
+        def _v(s):
+            return float(s.get("volume_m3", s.get("vol", 0.5)))
+        def _p(s):
+            return int(s.get("priority", s.get("pri", 3)))
+
         n = len(shipments)
         # 0/1 Knapsack DP
         dp = [[0] * (capacity_kg + 1) for _ in range(n + 1)]
         for i in range(1, n + 1):
-            w = int(shipments[i - 1].get("weight_kg", 0))
-            p = int(shipments[i - 1].get("priority", 3))
+            w = _w(shipments[i - 1])
+            p = _p(shipments[i - 1])
             for c in range(capacity_kg + 1):
                 if w > 0 and w <= c:
                     dp[i][c] = max(dp[i - 1][c], dp[i - 1][c - w] + p)
@@ -1352,36 +1359,39 @@ def load_optimize():
         for i in range(n, 0, -1):
             if dp[i][c] != dp[i - 1][c]:
                 dp_selected.append(shipments[i - 1])
-                c -= int(shipments[i - 1].get("weight_kg", 0))
+                c -= _w(shipments[i - 1])
         dp_selected.reverse()
 
-        dp_weight = sum(s.get("weight_kg", 0) for s in dp_selected)
-        dp_score = sum(s.get("priority", 3) for s in dp_selected)
+        dp_weight = sum(_w(s) for s in dp_selected)
+        dp_score = sum(_p(s) for s in dp_selected)
 
         # Greedy ratio (priority/weight)
-        sorted_shipments = sorted(shipments, key=lambda s: (int(s.get("priority", 3)) / max(int(s.get("weight_kg", 1)), 1)), reverse=True)
+        sorted_shipments = sorted(shipments, key=lambda s: (_p(s) / max(_w(s), 1)), reverse=True)
         gr_selected = []
         gr_c = capacity_kg
         for s in sorted_shipments:
-            w = int(s.get("weight_kg", 0))
+            w = _w(s)
             if w > 0 and w <= gr_c:
                 gr_selected.append(s)
                 gr_c -= w
-        gr_weight = sum(s.get("weight_kg", 0) for s in gr_selected)
-        gr_score = sum(s.get("priority", 3) for s in gr_selected)
+        gr_weight = sum(_w(s) for s in gr_selected)
+        gr_score = sum(_p(s) for s in gr_selected)
 
         improvement_pct = round((dp_score - gr_score) / max(gr_score, 1) * 100, 1)
 
-        # FFD bin packing
-        ffd_items = sorted(dp_selected, key=lambda s: float(s.get("volume_m3", 0.1)), reverse=True)
+        # FFD bin packing — physics: heavy bottom, fragile top
+        std_items = sorted([s for s in dp_selected if s.get("type") != "FRAGILE"], key=lambda s: _w(s), reverse=True)
+        frag_items = sorted([s for s in dp_selected if s.get("type") == "FRAGILE"], key=lambda s: _w(s), reverse=True)
+        ffd_items = std_items + frag_items
+
         CONTAINER_W, CONTAINER_H = 700, 280
         placements = []
         cur_x, cur_y, row_h = 10, 16, 0
         COLS = ["#7c74e8","#10b981","#f97316","#38bdf8","#f59e0b","#e879f9","#84cc16","#94a3b8"]
         for idx, s in enumerate(ffd_items):
-            vol = float(s.get("volume_m3", 0.5))
+            vol = _v(s)
             w = max(40, min(int(vol * 80), 200))
-            h = max(30, min(int(vol * 50), 120))
+            h = max(30, min(int(vol * 50), 120)) if s.get("type") != "FRAGILE" else max(24, min(int(vol * 40), 90))
             if cur_x + w > CONTAINER_W - 10:
                 cur_x = 10
                 cur_y += row_h + 8
@@ -1392,16 +1402,17 @@ def load_optimize():
                 "x": cur_x, "y": cur_y, "w": w, "h": h,
                 "color": COLS[idx % len(COLS)],
                 "item_id": s.get("id", f"S{idx+1}"),
-                "weight_kg": s.get("weight_kg", 0),
+                "weight_kg": _w(s),
+                "type": s.get("type", "STANDARD"),
             })
             row_h = max(row_h, h)
             cur_x += w + 8
 
         # Centre of Mass (weight-weighted)
         if dp_selected and placements:
-            total_w = sum(dp_selected[pi].get("weight_kg", 1) for pi in range(len(placements)))
-            com_x = sum((p["x"] + p["w"] / 2) * dp_selected[pi].get("weight_kg", 1) for pi, p in enumerate(placements)) / total_w
-            com_y = sum((p["y"] + p["h"] / 2) * dp_selected[pi].get("weight_kg", 1) for pi, p in enumerate(placements)) / total_w
+            total_w = sum(_w(dp_selected[pi]) for pi in range(len(placements))) or 1
+            com_x = sum((p["x"] + p["w"] / 2) * _w(dp_selected[pi]) for pi, p in enumerate(placements)) / total_w
+            com_y = sum((p["y"] + p["h"] / 2) * _w(dp_selected[pi]) for pi, p in enumerate(placements)) / total_w
         else:
             com_x, com_y = CONTAINER_W / 2, CONTAINER_H / 2
         com_x_pct = round(com_x / CONTAINER_W * 100, 1)
@@ -1411,9 +1422,9 @@ def load_optimize():
         resp_data = {
             "truck_id": truck_id,
             "selected_items": [{
-                "id": s.get("id"), "weight_kg": s.get("weight_kg"),
-                "volume_m3": s.get("volume_m3"), "type": s.get("type"),
-                "priority": s.get("priority"),
+                "id": s.get("id"), "weight_kg": _w(s),
+                "volume_m3": _v(s), "type": s.get("type"),
+                "priority": _p(s),
             } for s in dp_selected],
             "selected_weight_kg": dp_weight,
             "utilization_pct": round(dp_weight / capacity_kg * 100, 1),
@@ -1757,51 +1768,46 @@ def state_disrupted_dynamic():
 
 @app.route("/api/load/pdf", methods=["GET", "POST"])
 def load_pdf():
-    """GET|POST /api/load/pdf — export current load plan as PDF using reportlab."""
+    """POST /api/load/pdf — export per-truck load plan PDF with container visualization."""
     try:
         body = request.get_json(force=True, silent=True) or {}
+        truck_id = body.get("truck_id", "T1")
+        truck_route = body.get("truck_route", "")
+        truck_color = body.get("truck_color", "#7c74e8")
+        capacity_kg = int(body.get("capacity_kg", 800))
+        shipments = body.get("shipments", [])
+        if isinstance(shipments, str):
+            import json; shipments = json.loads(shipments)
 
-        # Use current VRP state (normal) for truck/shipment data
-        state = _safe_state("normal")
-        trucks_raw = state.get("trucks", [])
-        shipments = []
-        for i, s in enumerate(SHIPMENTS):
-            shipment = dict(s)
-            # Assign to truck based on VRP output
-            assigned = ""
-            for t in trucks_raw:
-                route_codes = t.get("route", [])
-                if shipment.get("origin") in route_codes or shipment.get("destination") in route_codes:
-                    assigned = f"TRK-{t.get('id', i)}"
-                    break
-            shipment["assigned_truck"] = assigned if assigned else "Unassigned"
-            shipment["priority"] = shipment.get("priority", "Standard")
-            shipments.append(shipment)
+        if not shipments:
+            return _safe_json({"status": "error", "detail": "No shipments provided"}), 400
 
-        trucks = []
-        for t in trucks_raw:
-            trucks.append({
-                "id": t.get("id", 0),
-                "route": t.get("route", []),
-                "distance_km": t.get("distance_km", 0),
-                "co2_kg": t.get("co2_kg", 0),
-            })
+        total_weight = sum(s.get("weight_kg", s.get("weight", 0)) for s in shipments)
+        total_vol = sum(s.get("volume_m3", s.get("vol", 0)) for s in shipments)
+        util_pct = round(total_weight / max(capacity_kg, 1) * 100, 1)
+        fragile_count = sum(1 for s in shipments if s.get("type") == "FRAGILE")
 
-        ts_str = now_ts()
         meta = {
-            "title": f"Load Plan — {len(shipments)} shipments",
-            "generated_at": ts_str,
+            "title": f"Truck {truck_id} Load Plan",
+            "truck_id": truck_id,
+            "truck_route": truck_route if isinstance(truck_route, str) else " → ".join(truck_route),
+            "truck_color": truck_color,
+            "capacity_kg": capacity_kg,
+            "generated_at": now_ts(),
             "total_shipments": len(shipments),
-            "total_weight": sum(s.get("weight_kg", 0) for s in shipments),
+            "total_weight": total_weight,
+            "total_volume": round(total_vol, 2),
+            "utilization_pct": util_pct,
+            "fragile_count": fragile_count,
         }
 
-        from qr_manager import generate_load_pdf
-        pdf_bytes = generate_load_pdf(shipments, trucks, meta)
+        from qr_manager import generate_truck_load_pdf
+        pdf_bytes = generate_truck_load_pdf(shipments, meta)
         return send_file(
             io.BytesIO(pdf_bytes),
             mimetype="application/pdf",
             as_attachment=True,
-            download_name=f"ResilientChain_LoadPlan_{ts_str[:10]}.pdf",
+            download_name=f"LoadPlan_{truck_id}_{now_ts()[:10]}.pdf",
         )
     except Exception as exc:
         logger.exception("load_pdf error")
