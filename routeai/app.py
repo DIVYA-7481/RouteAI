@@ -265,10 +265,17 @@ _api_key = os.environ.get("GEMINI_API_KEY")
 
 if _api_key:
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=_api_key)
-        # Using a fast, standard model for processing disruption text
-        _gemini_client = genai.GenerativeModel("gemini-2.5-flash")
+        from google import genai as _genai_mod
+        _genai_client = _genai_mod.Client(api_key=_api_key)
+
+        class _GeminiCompat:
+            def __init__(self, client, model):
+                self._client = client
+                self._model = model
+            def generate_content(self, prompt):
+                return self._client.models.generate_content(model=self._model, contents=prompt)
+
+        _gemini_client = _GeminiCompat(_genai_client, "gemini-2.5-flash")
         _gemini_live = True
         logger.info("Gemini API configured successfully.")
     except Exception as e:
