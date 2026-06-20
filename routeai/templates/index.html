@@ -1256,6 +1256,11 @@ input[type=range]{flex:1;accent-color:var(--purple);height:3px;cursor:pointer;ba
       <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:#10b981">
         <span class="live-dot"></span> System Nominal
       </div>
+      <!-- Hardware RFID Status Indicator -->
+      <div id="hw-rfid-status" style="display:flex;align-items:center;gap:6px;font-size:10px;color:#94a3b8;margin-left:12px;">
+        <div id="hw-dot" style="width:7px;height:7px;border-radius:50%;background:#4b5563;flex-shrink:0"></div>
+        <span id="hw-label">RFID: checking...</span>
+      </div>
       <!-- User chip (shown after login) -->
       <div id="tb-user-chip" style="display:none;align-items:center;gap:6px;padding:3px 10px;background:#1e1b2e;border:1px solid #534ab7;border-radius:20px;font-size:10px;color:#7c74e8;font-weight:600">
         <span id="tb-user-avatar" style="width:16px;height:16px;border-radius:50%;background:#7c74e8;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:700;flex-shrink:0">?</span>
@@ -5288,6 +5293,44 @@ setInterval(function() {
    INVENTORY MANAGEMENT — WMS Engine
 ──────────────────────────────────────────────── */
 
+/* ── Hardware RFID Status Polling ────────────────────────────────────────── */
+async function checkHardwareStatus() {
+  try {
+    const r = await fetch('/api/rfid/status', {
+      headers: authHeaders()
+    });
+    const d = await r.json();
+    const dot   = document.getElementById('hw-dot');
+    const label = document.getElementById('hw-label');
+    if (!dot || !label) return;
+
+    if (d.mqtt_connected) {
+      dot.style.background   = '#10b981';
+      dot.style.boxShadow    = '0 0 0 3px rgba(16,185,129,0.25)';
+      dot.style.animation    = 'livePulse 2s infinite';
+      label.textContent      = 'RFID: Hardware Live';
+      label.style.color      = '#10b981';
+    } else if (d.hardware_enabled) {
+      dot.style.background   = '#f59e0b';
+      dot.style.boxShadow    = 'none';
+      dot.style.animation    = 'none';
+      label.textContent      = 'RFID: Connecting...';
+      label.style.color      = '#f59e0b';
+    } else {
+      dot.style.background   = '#4b5563';
+      dot.style.boxShadow    = 'none';
+      dot.style.animation    = 'none';
+      label.textContent      = 'RFID: Software Mode';
+      label.style.color      = '#6b7280';
+    }
+  } catch(e) { /* silent */ }
+}
+
+function startHardwarePolling() {
+  checkHardwareStatus();
+  setInterval(checkHardwareStatus, 8000);
+}
+
 /* ─── Full hub dataset ─── */
 const INV_DATA = [
   { id:'BEN_K1', name:'Koyambedu Market',     city:'BEN', group:'BEN',     inbound:3,  outbound:7,  stock:12, capMT:3000,  status:'OK',       updated:'2m ago'  },
@@ -6055,10 +6098,10 @@ function invInit() {
   /* Seed scan log count */
   const cnt = document.getElementById('sl-count');
   if (cnt) cnt.textContent = SL_DATA.length + ' scans today';
-  /* Auto-refresh scan log every 8s while tab is visible */
+  /* Auto-refresh scan log every 4s while tab is visible */
   setInterval(() => {
     if (invCurrentTab === 2) slRenderLog();
-  }, 8000);
+  }, 4000);
 }
 
 /* ────────────────────────────────────────────────
@@ -6146,7 +6189,7 @@ setInterval(async () => {
       }
     }
   } catch(e) { /* offline — silent */ }
-}, 5000);
+}, 4000);
 
 /* ────────────────────────────────────────────────
    UTILS
@@ -8026,6 +8069,7 @@ function showDashboard() {
   // Fetch live hub inventory counts immediately on login
   refreshInventoryCounts();
   refreshHighwayStatus();
+  startHardwarePolling();
 
   // Navigate to overview — guard: wait for navigate to be defined
   const tryNav = () => {
