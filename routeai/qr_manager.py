@@ -667,7 +667,8 @@ def generate_truck_load_pdf(
     d.add(String(viz_w - 40, 4, "REAR", fillColor=rl_colors.HexColor("#475569"), fontSize=6, fontName="Helvetica-Bold"))
 
     # Floor line
-    d.add(Line(4, 18, viz_w - 4, 18, strokeColor=rl_colors.HexColor("#334155"), strokeWidth=1))
+    FLOOR_PY = 18
+    d.add(Line(4, FLOOR_PY, viz_w - 4, FLOOR_PY, strokeColor=rl_colors.HexColor("#334155"), strokeWidth=1))
 
     # Sort: heavy items bottom, fragile on top
     std_items = sorted([s for s in shipments if s.get("type") != "FRAGILE"],
@@ -679,7 +680,9 @@ def generate_truck_load_pdf(
     COLS_HEX = ["#7c74e8", "#10b981", "#f97316", "#38bdf8", "#f59e0b", "#e879f9", "#84cc16", "#94a3b8"]
     usable_w = viz_w - 16
     row_h = 38
-    cur_x, cur_y, max_row_h = 8, 20, 0
+    cur_x = 8
+    cur_row_bottom = FLOOR_PY
+    max_row_h = 0
     placements = []
 
     for idx, s in enumerate(sorted_items):
@@ -688,46 +691,54 @@ def generate_truck_load_pdf(
         h = row_h - 4 if s.get("type") == "FRAGILE" else row_h
         if cur_x + w > usable_w + 8:
             cur_x = 8
-            cur_y += max_row_h + 3
+            cur_row_bottom -= max_row_h + 3
             max_row_h = 0
-        if cur_y + h > viz_h - 8:
-            cur_y = 20
+        if cur_row_bottom - h < 22:
+            cur_row_bottom = FLOOR_PY
+            cur_x = 8
+            max_row_h = 0
         pkg_id = s.get("id", f"S{idx+1}")
         weight = s.get("weight_kg", s.get("weight", 0))
         col = rl_colors.HexColor(COLS_HEX[idx % len(COLS_HEX)])
 
-        d.add(Rect(cur_x, cur_y, w, h, fillColor=col, strokeColor=col, strokeWidth=0.5, rx=2))
+        y = cur_row_bottom - h
+        d.add(Rect(cur_x, y, w, h, fillColor=col, strokeColor=col, strokeWidth=0.5, rx=2))
         if s.get("type") == "FRAGILE":
-            d.add(Rect(cur_x, cur_y, w, h, fillColor=rl_colors.HexColor("#ffffff20"),
+            d.add(Rect(cur_x, y, w, h, fillColor=rl_colors.HexColor("#ffffff20"),
                        strokeColor=rl_colors.HexColor("#f59e0b"), strokeWidth=1, rx=2, strokeDashArray=[2, 2]))
         if w > 28:
-            d.add(String(cur_x + w / 2, cur_y + h / 2 + 2, str(pkg_id),
+            d.add(String(cur_x + w / 2, y + h / 2 + 2, str(pkg_id),
                          fillColor=rl_colors.white, fontSize=5.5, fontName="Helvetica-Bold",
                          textAnchor="middle"))
-            d.add(String(cur_x + w / 2, cur_y + h / 2 - 7, f"{weight}kg",
+            d.add(String(cur_x + w / 2, y + h / 2 - 7, f"{weight}kg",
                          fillColor=rl_colors.HexColor("#ffffffcc"), fontSize=5, textAnchor="middle"))
 
-        placements.append({"x": cur_x, "y": cur_y, "w": w, "h": h, "weight": weight})
+        placements.append({"x": cur_x, "y": y, "w": w, "h": h, "weight": weight})
         cur_x += w + 3
         max_row_h = max(max_row_h, h)
 
-    # Center of Mass
+    # Center of Mass — height from ground for topple risk
     if placements:
         total_w = sum(p["weight"] for p in placements) or 1
         com_x = sum((p["x"] + p["w"] / 2) * p["weight"] for p in placements) / total_w
         com_y = sum((p["y"] + p["h"] / 2) * p["weight"] for p in placements) / total_w
+        com_height_from_floor = FLOOR_PY - com_y
         d.add(Line(com_x, 20, com_x, viz_h - 4, strokeColor=rl_colors.HexColor("#ef444480"),
                    strokeWidth=0.8, strokeDashArray=[3, 2]))
         d.add(Line(4, com_y, viz_w - 4, com_y, strokeColor=rl_colors.HexColor("#ef444480"),
                    strokeWidth=0.8, strokeDashArray=[3, 2]))
         pts = [com_x, com_y - 5, com_x + 4, com_y, com_x, com_y + 5, com_x - 4, com_y]
         d.add(Polygon(pts, fillColor=rl_colors.HexColor("#ef4444"), strokeColor=rl_colors.white, strokeWidth=0.5))
-        com_safe = abs(com_x / viz_w - 0.5) < 0.15
-        label = "CoM SAFE" if com_safe else "CoM SHIFTED"
+        lateral_safe = abs(com_x / viz_w - 0.5) < 0.15
+        height_safe = com_height_from_floor < viz_h * 0.6
+        com_safe = lateral_safe and height_safe
+        label = "CoM SAFE" if com_safe else "CoM UNSAFE"
         lcol = rl_colors.HexColor("#10b981") if com_safe else rl_colors.HexColor("#ef4444")
-        d.add(String(com_x + 7, com_y + 3, label, fillColor=lcol, fontSize=5.5, fontName="Helvetica-Bold"))
+        d.add(String(com_x + 7, com_y + 3, f"{label} ({round(com_height_from_floor)}px from floor)",
+                     fillColor=lcol, fontSize=5, fontName="Helvetica-Bold"))
     else:
         com_safe = True
+        com_height_from_floor = 0
 
     story.append(d)
     story.append(Spacer(1, 3 * mm))
@@ -795,13 +806,13 @@ def generate_truck_load_pdf(
     heavy_total = sum(s.get("weight_kg", s.get("weight", 0)) for s in heavy_items)
     frag_total = sum(s.get("weight_kg", s.get("weight", 0)) for s in fragile_items)
     physics_points = []
-    physics_points.append(f"Heavy items ({len(heavy_items)} packages, {heavy_total}kg) placed at container bottom for low centre of gravity")
+    physics_points.append(f"Heavy items ({len(heavy_items)} packages, {heavy_total}kg) placed at container floor for low centre of gravity")
     if fragile_items:
-        physics_points.append(f"Fragile items ({len(fragile_items)} packages, {frag_total}kg) placed above heavy items to prevent breakage")
+        physics_points.append(f"Fragile items ({len(fragile_items)} packages, {frag_total}kg) stacked above heavy items to prevent breakage")
     if com_safe:
-        physics_points.append("Centre of Mass is within safe zone (&plusmn;15% of centre) - minimal topple risk")
+        physics_points.append(f"Centre of Mass is stable — {round(com_height_from_floor, 1)}px from floor (below 60% threshold) — minimal topple risk")
     else:
-        physics_points.append("Centre of Mass is SHIFTED - redistribute heavy items for stability")
+        physics_points.append(f"Centre of Mass is HIGH ({round(com_height_from_floor, 1)}px from floor) — redistribute heavy items lower")
     remaining_cap = cap - tw
     physics_points.append(f"Remaining capacity: {remaining_cap}kg ({round(remaining_cap / cap * 100, 1)}%) - {' adequate buffer' if remaining_cap > 100 else 'WARNING: low buffer'}")
     for pt in physics_points:

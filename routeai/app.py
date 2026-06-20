@@ -1379,14 +1379,18 @@ def load_optimize():
 
         improvement_pct = round((dp_score - gr_score) / max(gr_score, 1) * 100, 1)
 
-        # FFD bin packing — physics: heavy bottom, fragile top
+        # FFD bin packing — physics: stack from floor UP, heavy bottom, fragile top
         std_items = sorted([s for s in dp_selected if s.get("type") != "FRAGILE"], key=lambda s: _w(s), reverse=True)
         frag_items = sorted([s for s in dp_selected if s.get("type") == "FRAGILE"], key=lambda s: _w(s), reverse=True)
         ffd_items = std_items + frag_items
 
         CONTAINER_W, CONTAINER_H = 700, 280
+        FLOOR_Y = CONTAINER_H - 10
+        CEIL_Y = 10
         placements = []
-        cur_x, cur_y, row_h = 10, 16, 0
+        cur_x = 10
+        cur_row_bottom = FLOOR_Y
+        row_h = 0
         COLS = ["#7c74e8","#10b981","#f97316","#38bdf8","#f59e0b","#e879f9","#84cc16","#94a3b8"]
         for idx, s in enumerate(ffd_items):
             vol = _v(s)
@@ -1394,12 +1398,15 @@ def load_optimize():
             h = max(30, min(int(vol * 50), 120)) if s.get("type") != "FRAGILE" else max(24, min(int(vol * 40), 90))
             if cur_x + w > CONTAINER_W - 10:
                 cur_x = 10
-                cur_y += row_h + 8
+                cur_row_bottom -= row_h + 6
                 row_h = 0
-            if cur_y + h > CONTAINER_H - 16:
-                cur_y = 16
+            if cur_row_bottom - h < CEIL_Y:
+                cur_row_bottom = FLOOR_Y
+                cur_x = 10
+                row_h = 0
+            y = cur_row_bottom - h
             placements.append({
-                "x": cur_x, "y": cur_y, "w": w, "h": h,
+                "x": cur_x, "y": y, "w": w, "h": h,
                 "color": COLS[idx % len(COLS)],
                 "item_id": s.get("id", f"S{idx+1}"),
                 "weight_kg": _w(s),
@@ -1408,16 +1415,19 @@ def load_optimize():
             row_h = max(row_h, h)
             cur_x += w + 8
 
-        # Centre of Mass (weight-weighted)
+        # Centre of Mass — x for left/right balance, height-from-ground for topple risk
         if dp_selected and placements:
             total_w = sum(_w(dp_selected[pi]) for pi in range(len(placements))) or 1
             com_x = sum((p["x"] + p["w"] / 2) * _w(dp_selected[pi]) for pi, p in enumerate(placements)) / total_w
-            com_y = sum((p["y"] + p["h"] / 2) * _w(dp_selected[pi]) for pi, p in enumerate(placements)) / total_w
+            com_y_svg = sum((p["y"] + p["h"] / 2) * _w(dp_selected[pi]) for pi, p in enumerate(placements)) / total_w
+            com_height_from_ground = FLOOR_Y - com_y_svg
         else:
-            com_x, com_y = CONTAINER_W / 2, CONTAINER_H / 2
+            com_x = CONTAINER_W / 2
+            com_y_svg = CONTAINER_H / 2
+            com_height_from_ground = CONTAINER_H / 2
         com_x_pct = round(com_x / CONTAINER_W * 100, 1)
-        com_y_pct = round(com_y / CONTAINER_H * 100, 1)
-        com_safe = abs(com_x_pct - 50) < 15 and abs(com_y_pct - 50) < 15
+        com_height_pct = round(com_height_from_ground / CONTAINER_H * 100, 1)
+        com_safe = abs(com_x_pct - 50) < 15 and com_height_pct < 60
 
         resp_data = {
             "truck_id": truck_id,
@@ -1429,7 +1439,8 @@ def load_optimize():
             "selected_weight_kg": dp_weight,
             "utilization_pct": round(dp_weight / capacity_kg * 100, 1),
             "com_x_pct": com_x_pct,
-            "com_y_pct": com_y_pct,
+            "com_height_from_ground": round(com_height_from_ground, 1),
+            "com_height_pct": com_height_pct,
             "com_safe": com_safe,
             "dp_result": {"items_count": len(dp_selected), "weight_kg": dp_weight, "priority_score": dp_score, "method": "DP"},
             "greedy_result": {"items_count": len(gr_selected), "weight_kg": gr_weight, "priority_score": gr_score, "method": "Greedy"},

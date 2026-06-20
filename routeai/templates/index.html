@@ -6427,7 +6427,7 @@ async function loRunOptimizer() {
     var data = await res.json();
     if (data.status === 'error') { showToaster('Optimizer error: ' + data.detail, 'amber'); return; }
     updateLoWeightBar(data.selected_weight_kg, capacityKg, data.utilization_pct);
-    updateLoBinPackingViz(data.selected_items, data.bp_rectangles, data.com_x_pct, data.com_y_pct, data.com_safe);
+    updateLoBinPackingViz(data.selected_items, data.bp_rectangles, data.com_x_pct, data.com_height_from_ground, data.com_height_pct, data.com_safe);
     updateLoKnapsackComparison(data.dp_result, data.greedy_result);
     updateLoAlgoStats(data);
     loBuildTruckGrid();
@@ -6479,7 +6479,7 @@ function updateLoWeightBar(usedKg, capacityKg, utilPct) {
   document.getElementById('lo-util-sub').textContent = usedKg + 'kg / ' + capacityKg + 'kg';
 }
 
-function updateLoBinPackingViz(items, rects, comXPct, comYPct, comSafe) {
+function updateLoBinPackingViz(items, rects, comXPct, comHeightFromGround, comHeightPct, comSafe) {
   const grp = document.getElementById('lo-pkg-group');
   if (!grp) return;
   grp.innerHTML = '';
@@ -6548,7 +6548,9 @@ function updateLoBinPackingViz(items, rects, comXPct, comYPct, comSafe) {
   document.getElementById('lo-com-vline').setAttribute('opacity','0.7');
   document.getElementById('lo-com-hline').setAttribute('opacity','0.7');
   document.getElementById('lo-com-diamond').setAttribute('opacity','0.9');
-  document.getElementById('lo-com-label').setAttribute('opacity','0.9');
+  var comLabel = document.getElementById('lo-com-label');
+  comLabel.setAttribute('opacity','0.9');
+  comLabel.textContent = 'CoM ' + Math.round(comHeightFromGround) + 'px from ground';
   if (comSafe) {
     document.getElementById('lo-safe-zone').setAttribute('opacity','0.3');
     document.getElementById('lo-topple-bg').setAttribute('opacity','0');
@@ -6632,16 +6634,20 @@ function loFFD(items) {
   var sorted = heavy.concat(fragile);
 
   const placements = [];
-  let rowX = 2, rowIdx = 0;
+  let rowX = 2;
+  let rowBottom = FLOOR_Y;
+  let rowH = 0;
 
   for (const item of sorted) {
     const w = pkgW(item.vol);
-    if (rowX + w > MAX_W && rowX > 2) { rowIdx++; rowX = 2; }
+    if (rowX + w > MAX_W && rowX > 2) { rowX = 2; rowBottom -= rowH + 4; rowH = 0; }
     const x = SVG_X0 + rowX;
     const hItem = item.type === 'FRAGILE' ? ROW_H * 0.65 : ROW_H;
-    const y = FLOOR_Y - (rowIdx+1)*ROW_H + (ROW_H - hItem);
-    placements.push({ item, x, y, w, h: hItem, rowIdx });
+    if (rowBottom - hItem < SVG_Y0) { rowBottom = FLOOR_Y; rowX = 2; rowH = 0; }
+    const y = rowBottom - hItem;
+    placements.push({ item, x, y, w, h: hItem, rowBottom: rowBottom });
     rowX += w + 2;
+    rowH = Math.max(rowH, hItem);
   }
   return placements;
 }
@@ -6652,7 +6658,8 @@ function loCalcCoM(placements) {
   if (!totalW) return null;
   const cx = placements.reduce((s,p)=>s+p.item.weight*(p.x+p.w/2),0)/totalW;
   const cy = placements.reduce((s,p)=>s+p.item.weight*(p.y+p.h/2),0)/totalW;
-  return { cx, cy };
+  const heightFromGround = FLOOR_Y - cy;
+  return { cx, cy, heightFromGround };
 }
 
 function loRenderViz(items, animate) {
@@ -6762,15 +6769,15 @@ function loRenderViz(items, animate) {
       gEl.addEventListener('click', () => {
         const detail = document.getElementById('lo-pkg-detail');
         if (detail) {
-          const ruleIdx = p.rowIdx === 0 ? 0 : placements.filter(x=>x.rowIdx<p.rowIdx).length;
+          const hFromGround = Math.round(FLOOR_Y - (p.y + p.h));
           detail.style.display = 'block';
           detail.style.animation = 'slideDown .25s ease';
           detail.innerHTML =
             `<span style="color:#7c74e8;font-weight:700">${p.item.id}</span> ` +
             `<span style="color:#334155;font-size:9px">${p.item.type} · Priority ${p.item.pri}/5 · ${p.item.weight}kg · ${p.item.vol}m³</span><br>` +
             `<span style="color:#475569;font-size:10px">` +
-            `Placed at row ${p.rowIdx+1}, offset ${(p.x-SVG_X0).toFixed(0)}px — ` +
-            `${ruleIdx===0?'First item (largest volume per FFD rule)':'Fitted in first available space'}</span>`;
+            `Placed at offset ${(p.x-SVG_X0).toFixed(0)}px — ${hFromGround}px from floor — ` +
+            `${p.item.type==='FRAGILE'?'Fragile (stacked above heavy items)':'Heavy (base layer)'}</span>`;
         }
       });
 
@@ -6820,7 +6827,7 @@ function loUpdateOverlay(placements, items) {
     return;
   }
 
-  // CoM
+  // CoM — check both left/right balance AND height from ground
   const com = loCalcCoM(placements);
   if (com) {
     const vl = document.getElementById('lo-com-vline');
@@ -6835,15 +6842,17 @@ function loUpdateOverlay(placements, items) {
     dm.setAttribute('points',pts); dm.setAttribute('opacity','1');
     lb.setAttribute('x',com.cx+9); lb.setAttribute('y',com.cy-2);
     lb.setAttribute('opacity','1');
-    lb.textContent=`CoM (${Math.round(com.cx-SVG_X0)},${Math.round(com.cy-SVG_Y0)})`;
+    const hFromGround = Math.round(com.heightFromGround);
+    lb.textContent=`CoM ${hFromGround}px from ground`;
 
-    // Safe zone check: center is 350, ±15% = ±102.6px
     const centerX = SVG_X0 + SVG_W/2;
     const safeL = centerX - SVG_W*0.15, safeR = centerX + SVG_W*0.15;
+    const hSafe = com.heightFromGround < SVG_H * 0.6;
     const sz = document.getElementById('lo-safe-zone');
     const toppleBg  = document.getElementById('lo-topple-bg');
     const toppleTxt = document.getElementById('lo-topple-txt');
-    if (com.cx < safeL || com.cx > safeR) {
+    const lateralShift = com.cx < safeL || com.cx > safeR;
+    if (lateralShift || !hSafe) {
       sz.setAttribute('fill','rgba(239,68,68,.06)');
       toppleBg.setAttribute('opacity','1');
       toppleTxt.setAttribute('opacity','1');
