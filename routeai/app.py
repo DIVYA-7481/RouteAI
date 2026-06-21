@@ -25,10 +25,17 @@ import copy
 import json
 import os
 import threading
+import queue
 from datetime import datetime, timezone, timedelta
 
-from flask import Flask, render_template, jsonify, request, send_file
+from flask import Flask, render_template, jsonify, request, send_file, Response
 import io
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Logging  (must be defined before any code that uses logger)
@@ -401,6 +408,23 @@ def _log_app_action(agent: str, action: str, complexity: str = "",
         _agent_log_buffer.appendleft(entry)
         _persist_buffer_to_file()
     return entry
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SSE INVENTORY EVENTS — live RFID scan streaming to frontend
+# ═══════════════════════════════════════════════════════════════════════════════
+
+_inventory_event_subscribers: list = []
+_inventory_event_lock = threading.Lock()
+
+def _publish_inventory_event(event: dict):
+    """Fan out inventory events to live dashboard subscribers."""
+    with _inventory_event_lock:
+        subscribers = list(_inventory_event_subscribers)
+    for subscriber in subscribers:
+        try:
+            subscriber.put_nowait(event)
+        except Exception:
+            pass
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # MQTT SUBSCRIBER — receives scans from ESP32 hardware (background thread)
@@ -881,6 +905,7 @@ def rfid():
         }
         if action == "DUPLICATE":
             result["cooldown_remaining_s"] = remaining
+        _publish_inventory_event({"type": "rfid_scan", "scan": ev, "result": result})
         return _safe_json(result)
     except Exception as exc:
         logger.exception("rfid error")
@@ -903,6 +928,29 @@ def rfid_hw_status():
 def inventory():
     """GET /api/inventory — return current RFID log."""
     return _safe_json({"status": "ok", "log": inventory_log})
+
+
+@app.route("/api/inventory/events")
+def inventory_events():
+    """Server-Sent Events stream for live RFID inventory updates."""
+    def stream():
+        q: queue.Queue = queue.Queue(maxsize=50)
+        with _inventory_event_lock:
+            _inventory_event_subscribers.append(q)
+        try:
+            yield ": connected\n\n"
+            while True:
+                try:
+                    event = q.get(timeout=25)
+                    yield f"event: inventory_scan\ndata: {json.dumps(event)}\n\n"
+                except queue.Empty:
+                    yield ": keepalive\n\n"
+        finally:
+            with _inventory_event_lock:
+                if q in _inventory_event_subscribers:
+                    _inventory_event_subscribers.remove(q)
+
+    return Response(stream(), mimetype="text/event-stream")
 
 
 # ── QR / Barcode ──────────────────────────────────────────────────────────────

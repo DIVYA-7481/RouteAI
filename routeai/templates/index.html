@@ -5329,6 +5329,69 @@ async function checkHardwareStatus() {
 function startHardwarePolling() {
   checkHardwareStatus();
   setInterval(checkHardwareStatus, 8000);
+  startInventoryEventStream();
+}
+
+/* ─── Live RFID scan normalization + dedup + SSE ─── */
+let invLiveEventsStarted = false;
+const _liveScanDebounce = {};
+const _liveScanExactSeen = new Set();
+const LIVE_SCAN_COOLDOWN_MS = 30000;
+
+function normalizeScanEvent(scan) {
+  return {
+    timestamp: scan.timestamp || scan.ts || ts(),
+    package_id: scan.package_id || scan.pkg || scan.tag_id || '',
+    tag_id: scan.tag_id || scan.package_id || '',
+    hub: scan.hub_id || scan.hub || '',
+    scan_type: scan.action || scan.type || scan.direction || 'INBOUND',
+    action: scan.event || scan.action || 'RFID scan',
+    method: scan.method || 'RFID',
+    source: scan.source || 'mqtt',
+    scan_count: scan.scan_count,
+    device: scan.device,
+    rssi: scan.rssi,
+  };
+}
+
+function shouldSuppressLiveScan(scan) {
+  const tagId = scan.tag_id || scan.package_id || '';
+  const exactKey = tagId + '|' + (scan.timestamp || '');
+  if (_liveScanExactSeen.has(exactKey)) return true;
+  const now = Date.now();
+  const last = _liveScanDebounce[tagId];
+  if (last && (now - last) < LIVE_SCAN_COOLDOWN_MS) return true;
+  _liveScanExactSeen.add(exactKey);
+  _liveScanDebounce[tagId] = now;
+  return false;
+}
+
+function handleLiveInventoryScan(scan) {
+  if (shouldSuppressLiveScan(scan)) return;
+  var norm = normalizeScanEvent(scan);
+  addScanLogEntry(norm);
+  var logText = norm.package_id + ' scanned at ' + norm.hub;
+  addRFIDLog(logText);
+  if (typeof mpAddRFIDLog === 'function') mpAddRFIDLog(logText);
+  if (typeof mpShowRFIDToast === 'function') {
+    mpShowRFIDToast(norm.package_id + ' @ ' + norm.hub + ' — ' + norm.scan_type);
+  }
+  if (invCurrentTab === 0) refreshHubInventory();
+  showToaster(norm.package_id + ' @ ' + norm.hub + ' — ' + norm.scan_type, 'green');
+}
+
+function startInventoryEventStream() {
+  if (invLiveEventsStarted || !window.EventSource) return;
+  invLiveEventsStarted = true;
+  var src = new EventSource('/api/inventory/events');
+  window.inventoryEventSource = src;
+  src.addEventListener('inventory_scan', function(ev) {
+    try {
+      var data = JSON.parse(ev.data || '{}');
+      if (data.scan) handleLiveInventoryScan(data.scan);
+    } catch(e) {}
+  });
+  src.onerror = function() {};
 }
 
 /* ─── Full hub dataset ─── */
@@ -6102,6 +6165,7 @@ function invInit() {
   setInterval(() => {
     if (invCurrentTab === 2) slRenderLog();
   }, 4000);
+  startInventoryEventStream();
 }
 
 /* ────────────────────────────────────────────────
