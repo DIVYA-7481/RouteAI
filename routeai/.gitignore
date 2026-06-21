@@ -7,3 +7,4 @@ routeai-*.json
 *.pyc
 __pycache__/
 vrp_cache.json
+agent_activity_log.json

@@ -552,6 +552,7 @@ def _mqtt_subscriber_thread():
         try:
             logger.info("MQTT: connecting to %s:%d ...", _MQTT_HOST, _MQTT_PORT)
             client.connect(_MQTT_HOST, _MQTT_PORT, keepalive=60)
+            retry_delay = 5
             client.loop_forever()
         except Exception as e:
             logger.warning("MQTT connection error: %s — retry in %ds", e, retry_delay)
@@ -2472,7 +2473,8 @@ _AUTH_EXEMPT = {
     '/api/warmup',          # cold-start prevention — no user data
     '/api/fleet',           # read-only fleet state — no user data
     '/api/load/optimize',   # pure computation — no user data
-    '/api/rfid/status',     # hardware connection status diagnostic — no user data
+    '/api/rfid/status',         # hardware connection status diagnostic — no user data
+    '/api/inventory/events',    # SSE stream — EventSource cannot send auth headers
 }
 
 @app.before_request
