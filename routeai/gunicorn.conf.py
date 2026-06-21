@@ -1,0 +1,9 @@
+bind = "0.0.0.0:5000"
+workers = 1
+worker_class = "gevent"
+worker_connections = 10
+timeout = 120
+keepalive = 5
+accesslog = "-"
+errorlog = "-"
+loglevel = "info"

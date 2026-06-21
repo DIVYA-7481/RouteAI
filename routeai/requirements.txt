@@ -1,5 +1,6 @@
 flask==3.0.3
 gunicorn==22.0.0
+gevent==24.2.1
 networkx==3.3
 fuzzywuzzy==0.18.0
 python-Levenshtein==0.25.1
