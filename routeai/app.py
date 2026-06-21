@@ -402,6 +402,157 @@ def _log_app_action(agent: str, action: str, complexity: str = "",
         _persist_buffer_to_file()
     return entry
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# MQTT SUBSCRIBER — receives scans from ESP32 hardware (background thread)
+# Calls the same /api/rfid logic so Firestore, agent log, and scan log
+# all update identically regardless of whether the scan came from hardware
+# or the software simulate button.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import ssl as _ssl
+
+try:
+    import paho.mqtt.client as _mqtt_client
+    _PAHO_AVAILABLE = True
+except ImportError:
+    _PAHO_AVAILABLE = False
+    logger.warning("paho-mqtt not installed — hardware RFID disabled. Run: pip install paho-mqtt")
+
+# ── Config — must match ESP32 firmware ──────────────────────────────────────
+_MQTT_HOST  = os.environ.get("MQTT_HOST",  "YOUR_CLUSTER.s2.eu.hivemq.cloud")
+_MQTT_PORT  = int(os.environ.get("MQTT_PORT", "8883"))
+_MQTT_USER  = os.environ.get("MQTT_USER",  "rc_device_esp32")
+_MQTT_PASS  = os.environ.get("MQTT_PASS",  "YOUR_MQTT_PASSWORD")
+_MQTT_TOPIC = os.environ.get("MQTT_TOPIC", "resilientchain/rfid/scan")
+_MQTT_CLIENT_ID = "flask_subscriber_01"
+
+_mqtt_connected = False
+_mqtt_client_instance = None
+
+def _on_mqtt_connect(client, userdata, flags, rc):
+    global _mqtt_connected
+    if rc == 0:
+        _mqtt_connected = True
+        client.subscribe(_MQTT_TOPIC)
+        client.subscribe("resilientchain/device/presence")
+        logger.info("MQTT Subscriber connected to HiveMQ — listening on %s", _MQTT_TOPIC)
+    else:
+        rc_messages = {
+            1: "bad protocol", 2: "bad client ID", 3: "server unavailable",
+            4: "bad credentials (check MQTT_USER/MQTT_PASS env vars)",
+            5: "not authorized"
+        }
+        logger.warning("MQTT connect failed: %s (rc=%d)", rc_messages.get(rc, f"unknown rc={rc}"), rc)
+        _mqtt_connected = False
+
+def _on_mqtt_disconnect(client, userdata, rc):
+    global _mqtt_connected
+    _mqtt_connected = False
+    if rc != 0:
+        logger.warning("MQTT unexpected disconnect (rc=%d) — will auto-reconnect", rc)
+
+def _on_mqtt_message(client, userdata, msg):
+    try:
+        topic   = msg.topic
+        payload = json.loads(msg.payload.decode('utf-8'))
+        logger.info("MQTT RX [%s]: %s", topic, payload)
+
+        if topic == "resilientchain/device/presence":
+            logger.info("Device online: %s at hub %s",
+                        payload.get("device"), payload.get("hub"))
+            return
+
+        if topic != _MQTT_TOPIC:
+            return
+
+        tag_id  = str(payload.get("tag_id",  "")).strip()
+        hub_id  = str(payload.get("hub_id",  "BEN_H1")).strip().upper()
+
+        if not tag_id or not hub_id:
+            logger.warning("MQTT message missing tag_id or hub_id — ignored")
+            return
+
+        with app.test_request_context(
+            '/api/rfid',
+            method='POST',
+            data=json.dumps({"tag_id": tag_id, "hub_id": hub_id}),
+            content_type='application/json'
+        ):
+            try:
+                response = rfid()
+                result   = json.loads(response[0].get_data(as_text=True))
+                action   = result.get("action", "UNKNOWN")
+                pkg_id   = result.get("package_id", tag_id)
+                logger.info("MQTT→RFID: %s | %s | hub=%s | rssi=%sdBm",
+                            action, pkg_id, hub_id, payload.get("rssi", "?"))
+                _log_app_action(
+                    "LoadAgent",
+                    f"HW-RFID {action}: {pkg_id} at {hub_id} (device={payload.get('device','?')}, "
+                    f"rssi={payload.get('rssi','?')}dBm)",
+                    complexity="O(1)",
+                    duration_ms=0,
+                    output_summary=f"Tag {tag_id} → {pkg_id} | {action}"
+                )
+            except Exception as inner_e:
+                logger.error("MQTT→RFID internal processing error: %s", inner_e)
+
+    except json.JSONDecodeError:
+        logger.warning("MQTT: received non-JSON payload: %s", msg.payload)
+    except Exception as e:
+        logger.error("MQTT message handler error: %s", e)
+
+def _mqtt_subscriber_thread():
+    if not _PAHO_AVAILABLE:
+        return
+
+    global _mqtt_client_instance
+    client = _mqtt_client.Client(
+        _mqtt_client.CallbackAPIVersion.VERSION1,
+        client_id=_MQTT_CLIENT_ID,
+        clean_session=True,
+        protocol=_mqtt_client.MQTTv311
+    )
+    client.username_pw_set(_MQTT_USER, _MQTT_PASS)
+
+    tls_ctx = _ssl.create_default_context()
+    client.tls_set_context(tls_ctx)
+
+    client.on_connect    = _on_mqtt_connect
+    client.on_disconnect = _on_mqtt_disconnect
+    client.on_message    = _on_mqtt_message
+
+    _mqtt_client_instance = client
+
+    retry_delay = 5
+    while True:
+        try:
+            logger.info("MQTT: connecting to %s:%d ...", _MQTT_HOST, _MQTT_PORT)
+            client.connect(_MQTT_HOST, _MQTT_PORT, keepalive=60)
+            client.loop_forever()
+        except Exception as e:
+            logger.warning("MQTT connection error: %s — retry in %ds", e, retry_delay)
+            threading.Event().wait(retry_delay)
+            retry_delay = min(retry_delay * 2, 60)
+
+def _start_mqtt_subscriber():
+    if not _PAHO_AVAILABLE:
+        logger.warning("MQTT subscriber skipped — paho-mqtt not installed")
+        return
+    if "YOUR_CLUSTER" in _MQTT_HOST or not _MQTT_HOST:
+        logger.warning("MQTT subscriber skipped — set MQTT_HOST env var to enable hardware RFID")
+        return
+
+    t = threading.Thread(
+        target=_mqtt_subscriber_thread,
+        name="mqtt-rfid-subscriber",
+        daemon=True
+    )
+    t.start()
+    logger.info("MQTT subscriber thread started (daemon)")
+
+if not os.environ.get("TESTING"):
+    _start_mqtt_subscriber()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ─────────────────────────────────────────────────────────────────────────────
@@ -646,8 +797,8 @@ def rfid():
             pkg_num  = (tag_hash % 99) + 1
             grp_num  = ((tag_hash // 99) % 20) + 1
             origin   = ["BEN","HYD","CHE","MUM","VIZ","COC"][pkg_num % 6]
-            dest     = ["MUM","VIZ","COC","BEN","HYD","CHE"][(pkg_num + 3) % 6]
-            package_id = f"PK{pkg_num}G{grp_num}{origin}{dest}"
+            destination = ["MUM","VIZ","COC","BEN","HYD","CHE"][(pkg_num + 3) % 6]
+            package_id = f"PK{pkg_num}G{grp_num}{origin}{destination}"
 
         HUB_NAMES = {
             "W1":"Koyambedu","W2":"Ambattur","W3":"Tambaram",
@@ -734,6 +885,18 @@ def rfid():
     except Exception as exc:
         logger.exception("rfid error")
         return _safe_json({"status": "error", "detail": str(exc)})
+
+
+@app.route('/api/rfid/status')
+def rfid_hw_status():
+    """GET /api/rfid/status — shows whether hardware MQTT link is active."""
+    return _safe_json({
+        "mqtt_connected": _mqtt_connected,
+        "mqtt_host":      _MQTT_HOST if "YOUR_CLUSTER" not in _MQTT_HOST else None,
+        "mqtt_topic":     _MQTT_TOPIC,
+        "paho_available": _PAHO_AVAILABLE,
+        "hardware_enabled": _PAHO_AVAILABLE and "YOUR_CLUSTER" not in _MQTT_HOST,
+    })
 
 
 @app.route("/api/inventory")
@@ -2261,6 +2424,7 @@ _AUTH_EXEMPT = {
     '/api/warmup',          # cold-start prevention — no user data
     '/api/fleet',           # read-only fleet state — no user data
     '/api/load/optimize',   # pure computation — no user data
+    '/api/rfid/status',     # hardware connection status diagnostic — no user data
 }
 
 @app.before_request
