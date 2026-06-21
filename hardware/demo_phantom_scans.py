@@ -13,10 +13,10 @@ import ssl
 import json
 import time
 
-MQTT_HOST  = "YOUR_CLUSTER.s2.eu.hivemq.cloud"   # Replace with your HiveMQ cluster URL
+MQTT_HOST  = "07415e1eeddc4f73b6eecadca7232cc9.s1.eu.hivemq.cloud"
 MQTT_PORT  = 8883
-MQTT_USER  = "rc_device_esp32"                      # Replace with your MQTT username
-MQTT_PASS  = "YOUR_MQTT_PASSWORD"                   # Replace with your MQTT password
+MQTT_USER  = "janya"
+MQTT_PASS  = "Janya@11"
 MQTT_TOPIC = "resilientchain/rfid/scan"
 
 DEMO_SCANS = [

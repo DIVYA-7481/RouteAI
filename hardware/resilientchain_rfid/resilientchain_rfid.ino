@@ -27,14 +27,14 @@
 // ═══════════════════════════════════════════════════════════════
 
 // WiFi credentials
-const char* WIFI_SSID     = "YOUR_WIFI_NAME";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
+const char* WIFI_SSID     = "Gupta g";
+const char* WIFI_PASSWORD = "jitendragupta";
 
 // HiveMQ Cloud broker
-const char* MQTT_HOST     = "YOUR_CLUSTER.s2.eu.hivemq.cloud";
-const int   MQTT_PORT     = 8883;
-const char* MQTT_USER     = "rc_device_esp32";
-const char* MQTT_PASS     = "YOUR_MQTT_PASSWORD";
+const char* MQTT_HOST      = "07415e1eeddc4f73b6eecadca7232cc9.s1.eu.hivemq.cloud";
+const int   MQTT_PORT      = 8883;
+const char* MQTT_USER      = "janya";
+const char* MQTT_PASS      = "Janya@11";
 const char* MQTT_TOPIC    = "resilientchain/rfid/scan";
 const char* MQTT_CLIENT_ID = "ESP32_RC_RFID_001";
 
